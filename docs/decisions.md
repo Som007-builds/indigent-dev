@@ -12,3 +12,4 @@
 - Step 7: sovereignty mode is derived exclusively from settings; the process egress guard is defense-in-depth and does not replace OS or container network controls.
 - Step 8: readiness checks use only configured loopback Ollama/Qdrant URLs with a two-second timeout; their status is informational while SQLite, Docker, and the sandbox image gate readiness.
 2026-09-25 — Step 2: task lifecycle is detached with `asyncio.create_task`; persisted EventBus is the source of truth for SSE replay.
+2026-09-25 — Phase 1 Joy: providers use HTTP contracts through `httpx`; Ollama/Groq SDKs are intentionally not imported, matching the repository security rule.
