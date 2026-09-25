@@ -31,3 +31,8 @@ class ArtifactCorruptError(AppError):
 class EgressDeniedError(AppError):
     def __init__(self, message: str = "Network egress denied") -> None:
         super().__init__("EGRESS_DENIED", 403, message)
+
+
+class ModelUnavailableError(AppError):
+    def __init__(self, message: str = "No available model matches the request") -> None:
+        super().__init__("MODEL_UNAVAILABLE", 503, message)
