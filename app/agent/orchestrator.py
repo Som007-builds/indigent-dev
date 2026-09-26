@@ -7,9 +7,16 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from app.contracts.models import ArtifactManifest, PolicyDecision, TaskContext, TaskEvent, ToolRequest, ToolResult
-from app.rag.models import ClaimProvenance, EvidenceItem
+from app.contracts.models import (
+    ArtifactManifest,
+    PolicyDecision,
+    TaskContext,
+    TaskEvent,
+    ToolRequest,
+    ToolResult,
+)
 from app.providers import InferenceProvider, Message, ToolSchema
+from app.rag.models import ClaimProvenance, EvidenceItem
 
 from .router import ModelRouter
 from .state import TaskSnapshot
@@ -337,7 +344,10 @@ class BoundedOrchestrator:
             validation_status = "VALID" if valid else "INVALID"
             artifact_validator = getattr(services, "semantic_artifact_validator", self.dependencies.artifact_validator) if services is not None else self.dependencies.artifact_validator
             if artifact_validator is not None:
-                from app.artifact_validation import ArtifactValidationContext, ArtifactValidationResult
+                from app.artifact_validation import (
+                    ArtifactValidationContext,
+                    ArtifactValidationResult,
+                )
 
                 if not artifact_manifests:
                     valid = False

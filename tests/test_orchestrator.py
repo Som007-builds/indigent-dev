@@ -12,9 +12,9 @@ from app.agent.orchestrator import (
 from app.agent.registry import ModelRegistry
 from app.agent.resource_manager import ResourceManager
 from app.agent.router import ModelRouter
+from app.artifact_validation import ArtifactValidationContext, ArtifactValidationResult
 from app.config import Settings
 from app.contracts.models import ArtifactManifest, PolicyDecision, TaskContext
-from app.artifact_validation import ArtifactValidationContext, ArtifactValidationResult
 from app.providers.types import InferenceResult, ModelInfo, ProviderHealth, ToolSchema
 
 

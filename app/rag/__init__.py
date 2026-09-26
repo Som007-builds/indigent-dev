@@ -1,6 +1,13 @@
 from .chunking import chunk_document, source_sha256
 from .extractors import PlainTextExtractor
-from .interfaces import DocumentIngestor, Embedder, OcrExtractor, Reranker, TextExtractor, VectorStore
+from .interfaces import (
+    DocumentIngestor,
+    Embedder,
+    OcrExtractor,
+    Reranker,
+    TextExtractor,
+    VectorStore,
+)
 from .models import (
     ArtifactProvenance,
     Chunk,

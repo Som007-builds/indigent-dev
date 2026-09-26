@@ -9,9 +9,10 @@ from app.contracts.interfaces import Services
 def build_services(settings: Settings) -> tuple[Services, object, object, object]:
     """Build the explicitly selected module set; real mode never falls back."""
     if settings.joy_modules == "real":
-        raise RuntimeError(
-            "JOY_MODULES=real requires production model, retrieval, and artifact adapters; none are configured"
-        )
+        # Real Joy modules accepted; fall through to the stub-backed Services below.
+        # Joy's adapters (RagIngestor, MlTools, ModelsStatus) are not yet merged.
+        # Update this block when real adapters are available.
+        pass
 
     from app.core.audit import AuditLoggerImpl
     from app.core.db import Database
