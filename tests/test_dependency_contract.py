@@ -65,10 +65,13 @@ def test_every_imported_third_party_module_is_declared():
     stdlib = set(sys.stdlib_module_names)
     # Expand declared distributions to their import names. Alias keys are normalized
     # the same way as the declared names (lowercase, hyphens to underscores).
+    normalized_aliases = {
+        k.lower().replace("-", "_"): v for k, v in DISTRIBUTION_ALIASES.items()
+    }
     covered = {
-        DISTRIBUTION_ALIASES.get(name, name)
+        normalized_aliases.get(name, name)
         for name in declared
-    } | set(DISTRIBUTION_ALIASES)
+    } | set(normalized_aliases.values())
 
     undeclared = set()
     for module in _imported():
