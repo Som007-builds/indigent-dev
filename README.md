@@ -316,9 +316,3 @@ python3 -m compileall -q app tests
 ## License
 
 License TBD. Will be added with the release configuration.
-
----
-
-## Next step
-
-Clone the repo, run `pytest -q`, and read through `app/agent/orchestrator.py` and `app/policy/validator.py`. That's the fastest way to see the propose, policy, execute, verify loop in actual code instead of in diagrams.
