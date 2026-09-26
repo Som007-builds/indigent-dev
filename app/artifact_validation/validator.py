@@ -11,9 +11,9 @@ from typing import TYPE_CHECKING, Any, Literal
 from pydantic import ValidationError
 
 from app.contracts.models import ArtifactManifest
-from app.rag.models import ClaimProvenance, EvidenceItem, VerificationProvenance
 
 if TYPE_CHECKING:
+    from app.rag.models import ClaimProvenance, EvidenceItem, VerificationProvenance
     from app.rag.verification.citation import CitationVerificationResult
 
 
@@ -66,7 +66,7 @@ class SemanticArtifactValidator:
             if not artifact.artifact_id or not artifact.task_id or not artifact.created_at:
                 return self._result("INVALID", actual_hash, [{"name": "manifest_required_fields", "passed": False, "reason": "MISSING_MANIFEST_FIELDS"}], context)
             checks.append({"name": "manifest_required_fields", "passed": True})
-            structural, unverified = self._structural(artifact, path, content)
+            structural, unverified = self._structural(artifact, path, content, context)
             checks.extend(structural)
             if any(check.get("passed") is False for check in structural):
                 return self._result("INVALID", actual_hash, checks, context)
@@ -76,12 +76,14 @@ class SemanticArtifactValidator:
                 "UNVERIFIED" if unverified or semantic_unverified else "VALID"
             )
             return self._result(status, actual_hash, checks, context)
+        except NameError:
+            raise
         except Exception as error:
             checks.append({"name": "validator_exception", "passed": False, "reason": "VALIDATOR_ERROR", "detail": type(error).__name__})
             return self._result("INVALID", None, checks, context)
 
     def _structural(
-        self, artifact: ArtifactManifest, path: Path, content: bytes
+        self, artifact: ArtifactManifest, path: Path, content: bytes, context: ArtifactValidationContext
     ) -> tuple[list[dict[str, Any]], bool]:
         checks: list[dict[str, Any]] = []
         expected_ext = {
