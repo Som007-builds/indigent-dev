@@ -1,10 +1,10 @@
 # Indigent
 
-**A sovereignty-first, self-hosted agentic AI workbench for confidential industrial engineering work — where every model action is proposed, policy-checked, executed by tools, and verified before it ever becomes an approved artifact.**
+**A sovereignty-first, self-hosted agentic AI workbench for industrial engineering work that can't leave the building.** Every model action gets proposed, checked against policy, run through tools, and verified before it becomes an approved artifact.
 
 Built for **Smart India Hackathon 2026 · Problem Statement 26117**.
 
-Status: Phase 1 (control plane) implemented and tested · Phases 2–4 in progress — see [Current development status](#current-development-status).
+Status: Phase 1 (control plane) implemented and tested. Phases 2–4 are in progress. See [Current development status](#current-development-status).
 
 [Why Indigent](#why-indigent) · [How it works](#core-principles) · [Quick start](#quick-start) · [Architecture](#architecture) · [Status](#current-development-status) · [Roadmap](#roadmap) · [Contributing](#contributing)
 
@@ -12,9 +12,9 @@ Status: Phase 1 (control plane) implemented and tested · Phases 2–4 in progre
 
 ## Why Indigent
 
-Industrial organizations sit on large amounts of sensitive knowledge work — inspection reports, P&IDs, equipment specs, maintenance records, internal calculations, automation scripts, and compliance documents. Most AI-assisted workflows for this kind of work quietly assume the data can leave the building. Indigent assumes the opposite: **the data stays inside the organization's infrastructure**, and any exception to that is an explicit, visible configuration choice rather than a hidden fallback.
+Companies need to keep sensitive data in-house: inspection reports, P&IDs, specs, maintenance logs, calculations, scripts, compliance docs. Most AI workflows assume that data can leave the building. Indigent doesn't. **Your data stays inside your own infrastructure.** Any exception is a config setting you choose explicitly, not a hidden fallback.
 
-Indigent isn't just "a local LLM wrapper." It's a control plane that sits between a model and the actions it's allowed to take — so swapping in a better model never quietly expands what that model is trusted to do.
+Indigent is more than a local LLM wrapper. It's a control plane between the model and the tools it uses. Upgrading the model doesn't automatically give it more permissions.
 
 ## Core principles
 
@@ -24,9 +24,9 @@ Indigent isn't just "a local LLM wrapper." It's a control plane that sits betwee
 INFERENCE_MODE=local
 ```
 
-In local mode, there is no silent fallback to a cloud provider. A sanctioned external provider (Groq) exists purely as a development/testing option — shipped and demo configuration targets local inference on Ollama.
+Local mode has no silent fallback to a cloud provider. Groq is available as a sanctioned dev/testing option, kept separate from the default path. The shipped and demo configuration runs on local Ollama.
 
-The platform also exposes sovereignty as a runtime state, not a README claim:
+The platform also shows sovereignty as a live runtime state, not just a README claim:
 
 ```text
 AIR-GAPPED
@@ -44,7 +44,7 @@ Network: ALLOWED TO PROVIDER ENDPOINT
 
 ### 2. Bounded autonomy
 
-The agent doesn't get a prompt and freelance from there. Execution follows a fixed, auditable state machine with explicit timeouts, authorization rules, and bounded repair attempts at every stage:
+The agent runs through a fixed state machine with defined timeouts, authorization checks, and capped repair attempts at each stage:
 
 ```mermaid
 flowchart TD
@@ -64,7 +64,7 @@ flowchart TD
 
 ### 3. Policy-controlled execution
 
-Model output is treated as an **untrusted proposal**, never a trusted instruction. Every tool request passes through a deterministic policy validator before it can touch the execution runtime — the model cannot authorize its own actions.
+We treat model output as an **untrusted proposal**, never a trusted instruction. Every tool request has to clear a deterministic policy validator before it reaches the execution runtime. The model can't authorize its own actions.
 
 ```mermaid
 flowchart LR
@@ -76,7 +76,7 @@ flowchart LR
 
 ### 4. Evidence before confidence
 
-Retrieval is built around provenance, not a pile of similar-looking text. Every piece of evidence carries a document ID, chunk ID, source hash, page/section reference, and retrieval/rerank scores, forming a traceable chain:
+We track where every piece of evidence came from instead of just returning similar-looking text chunks. Each piece of evidence carries a document ID, chunk ID, source hash, page/section reference, and retrieval/rerank scores, so it can be traced back to its source:
 
 ```
 Document → Chunk → Evidence → Claim → Verification → Artifact
@@ -84,7 +84,7 @@ Document → Chunk → Evidence → Claim → Verification → Artifact
 
 ### 5. Verification is a first-class step
 
-Nothing generated is automatically trusted. Indigent checks citations, evidence linkage, arithmetic, code execution/tests, and artifact structure and semantics — with bounded repair and re-validation when checks fail. Where something can't be independently verified, the system records an explicit **`UNVERIFIED`** state instead of pretending it passed.
+Nothing is trusted by default. We verify citations, evidence chains, math, code execution and tests, and artifact structure and semantics. If a check fails, we attempt repair and re-verify, up to three times. If something still can't be verified, it's recorded as **`UNVERIFIED`** instead of marked as passing.
 
 ---
 
@@ -114,7 +114,7 @@ flowchart TD
 
 ### Security boundary
 
-Indigent treats the model as an untrusted decision-making component, never a trusted execution engine.
+We treat the model as an untrusted decision-maker, never a trusted execution engine.
 
 ```mermaid
 flowchart TD
@@ -128,7 +128,7 @@ Other security properties: fail-closed validation, workspace confinement, path-t
 
 ## Quick start
 
-The repository currently ships the Joy control-plane implementation and its test suite. There is no end-to-end application yet (see [status](#current-development-status)), but you can install and validate the control plane itself:
+The repo currently ships the Joy control-plane implementation and its test suite. There's no end-to-end application yet (see [status](#current-development-status) below). You can install it and run the control plane itself:
 
 ```bash
 # Install dependencies from the project configuration
@@ -143,7 +143,7 @@ python3 -m compileall -q app tests
 
 Expected result: **101 tests passing**, with no external network access required.
 
-Local inference is intended to run through [Ollama](https://ollama.com). Production configuration explicitly sets `INFERENCE_MODE=local`; external inference (Groq) should only ever be enabled deliberately, for development or testing.
+Local inference runs through [Ollama](https://ollama.com). Production config sets `INFERENCE_MODE=local`. Groq is only enabled deliberately, for development or testing.
 
 ---
 
@@ -175,7 +175,7 @@ There is no unbounded self-correction loop anywhere in the system.
 
 ## Current development status
 
-The repository contains the core Joy control-plane implementation and its associated tests — this is a control-plane-first build, not yet a wired end-to-end product.
+The repo contains the core Joy control-plane implementation and its tests. This is control-plane-first, not a wired-up end-to-end product yet.
 
 **Implemented and tested**
 - Inference provider abstraction, Ollama provider, Groq dev provider
@@ -197,7 +197,7 @@ The repository contains the core Joy control-plane implementation and its associ
 - Full end-to-end execution paths
 - Security/attack testing and demo hardening
 
-The project intentionally **fails closed** where production dependencies or adapters aren't configured, rather than silently substituting stubs or external services.
+We intentionally **fail closed** when production dependencies or adapters aren't configured, instead of silently substituting stubs or external services.
 
 ---
 
@@ -207,7 +207,7 @@ The project intentionally **fails closed** where production dependencies or adap
 pytest -q
 ```
 
-Current focused test baseline: **101 passed**, covering provider behavior, model routing, resource management, orchestration, policy enforcement, RAG, citation verification, coding verification, P&ID parsing, artifact validation/repair, and application-wiring behavior. The suite is designed to run without external network access.
+The current focused test baseline is **101 passed**, covering provider behavior, model routing, resource management, orchestration, policy enforcement, RAG, citation verification, coding verification, P&ID parsing, artifact validation/repair, and application-wiring behavior. The suite runs without external network access.
 
 ---
 
@@ -271,7 +271,7 @@ For generated code, tool calls resolve to a validated contract of this shape:
 
 ## Configuration
 
-Only the settings the system currently exposes are documented here — this list will grow as production wiring lands.
+This only documents settings that currently exist. The table will grow as production wiring lands.
 
 | Variable | Required | Default | Description |
 |---|---:|---|---|
@@ -293,7 +293,7 @@ Only the settings the system currently exposes are documented here — this list
 
 ## Contributing
 
-Contributions are welcome, provided they preserve the project's security and sovereignty boundaries. In particular, please don't:
+Contributions are welcome as long as you don't break the security/sovereignty boundaries. Specifically, don't:
 
 - introduce silent cloud fallbacks
 - bypass policy validation
@@ -302,7 +302,7 @@ Contributions are welcome, provided they preserve the project's security and sov
 - weaken workspace/path isolation
 - add external network dependencies to offline execution paths
 
-Do prefer deterministic validation over LLM-based validation wherever possible, and preserve provenance whenever data moves through the system.
+Prefer deterministic validation over LLM-based validation wherever you can, and keep provenance intact whenever data moves through the system.
 
 **Local setup:**
 
@@ -315,10 +315,10 @@ python3 -m compileall -q app tests
 
 ## License
 
-License information will be added with the project's release configuration.
+License TBD. Will be added with the release configuration.
 
 ---
 
 ## Next step
 
-Clone the repo, run `pytest -q`, and read through `app/agent/orchestrator.py` and `app/policy/validator.py` — that's the fastest way to see the propose → policy → execute → verify loop in actual code rather than in diagrams.
+Clone the repo, run `pytest -q`, and read through `app/agent/orchestrator.py` and `app/policy/validator.py`. That's the fastest way to see the propose, policy, execute, verify loop in actual code instead of in diagrams.
