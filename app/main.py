@@ -8,20 +8,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import Settings, get_settings
-from app.core.artifacts import ArtifactStoreImpl
-from app.core.audit import AuditLoggerImpl
 from app.core.db import Database
 from app.core.events import EventBus
 from app.core.repo import Repository
 from app.core.taskrunner import TaskRunner
 from app.core.workspace import cleanup_expired
-from app.deps import build_services
+from app.deps import RealControlPlane, build_services
 from app.errors import AppError
 from app.logging_setup import configure_logging, request_id
 from app.net.egress_guard import install as install_egress_guard
 from app.net.egress_guard import uninstall as uninstall_egress_guard
-from app.net.sovereignty import SovereigntyImpl
-from app.runtime.executor import ToolRuntimeImpl
 from app.stubs.models_status import StubModelsStatus
 
 
@@ -35,13 +31,14 @@ def create_app(settings: Settings | None = None, models_status: object | None = 
         logging.getLogger(__name__).warning("EXTERNAL INFERENCE ACTIVE")
     database = Database(settings.data_dir / "db.sqlite")
     repository = Repository(database)
-    audit = AuditLoggerImpl(repository, settings)
-    services, orchestrator, rag, pid = build_services(settings)
-    # Keep all persistence-facing mechanisms on the app's repository instance.
-    services.audit = audit
-    services.artifacts = ArtifactStoreImpl(repository, audit)
-    services.sovereignty = SovereigntyImpl(repository, settings)
-    services.runtime = ToolRuntimeImpl(settings, services)
+    # Composition reuses this repository so audit, sovereignty, artifacts, the tool
+    # runtime and the orchestrator all share one initialized database handle.
+    services, orchestrator, rag, pid = build_services(settings, repository=repository)
+    audit = services.audit
+    if isinstance(orchestrator, RealControlPlane):
+        plane = orchestrator
+        orchestrator = plane.orchestrator
+        models_status = models_status or plane.models_status
     bus = EventBus(repository, settings.inference_mode)
     runner = TaskRunner(repository, bus, services, orchestrator, settings)
 
@@ -151,7 +148,7 @@ def create_app(settings: Settings | None = None, models_status: object | None = 
     app.include_router(tasks_router(runner, bus, repository))
     app.include_router(files_router(settings, repository, audit))
     app.include_router(knowledge_router(settings, repository, audit, rag))
-    app.include_router(models_router(models_status or StubModelsStatus()))
+    app.include_router(models_router(models_status or getattr(services, "models_status", StubModelsStatus())))
     app.include_router(monitoring_router(services.sovereignty))
     app.include_router(pid_router(settings, repository, audit, pid, services.artifacts))
     app.include_router(health_router(settings, database))

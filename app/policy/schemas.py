@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -12,6 +13,7 @@ class ArgumentRule:
     extensions: frozenset[str] = frozenset()
     must_exist: bool = False
     max_size_bytes: int | None = None
+    max_json_bytes: int | None = None
     minimum: int | float | None = None
     maximum: int | float | None = None
 
@@ -26,14 +28,25 @@ _DOCUMENT_EXTENSIONS = frozenset(
 )
 _IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".tif", ".tiff"})
 _CODE_EXTENSIONS = frozenset({".py", ".txt", ".md", ".json", ".csv"})
+MAX_SPEC_BYTES = 1024 * 1024
 
 TOOL_POLICIES: dict[str, ToolPolicy] = {
     "read_file": ToolPolicy({"path": ArgumentRule((str,), True, True, _DOCUMENT_EXTENSIONS, True)}),
     "ocr_document": ToolPolicy({"path": ArgumentRule((str,), True, True, _DOCUMENT_EXTENSIONS, True)}),
     "search_knowledge_base": ToolPolicy({"query": ArgumentRule((str,), True)}),
     "retrieve_section": ToolPolicy({"document_id": ArgumentRule((str,), True), "section": ArgumentRule((str,), True)}),
-    "create_docx": ToolPolicy({"output": ArgumentRule((str,), True, True, frozenset({".docx"}))}),
-    "create_xlsx": ToolPolicy({"output": ArgumentRule((str,), True, True, frozenset({".xlsx"}))}),
+    "create_docx": ToolPolicy(
+        {
+            "output": ArgumentRule((str,), True, True, frozenset({".docx"})),
+            "spec": ArgumentRule((dict,), True, max_json_bytes=MAX_SPEC_BYTES),
+        }
+    ),
+    "create_xlsx": ToolPolicy(
+        {
+            "output": ArgumentRule((str,), True, True, frozenset({".xlsx"})),
+            "spec": ArgumentRule((dict,), True, max_json_bytes=MAX_SPEC_BYTES),
+        }
+    ),
     "write_file": ToolPolicy({"path": ArgumentRule((str,), True, True), "content": ArgumentRule((str,), True)}),
     "create_code": ToolPolicy({"files": ArgumentRule((list,), True)}),
     "execute_code": ToolPolicy(
@@ -67,6 +80,13 @@ def validate_shape(arguments: Any, policy: ToolPolicy) -> str | None:
                 return f"RESOURCE_LIMIT: {name} is below the permitted minimum"
             if rule.maximum is not None and value > rule.maximum:
                 return f"RESOURCE_LIMIT: {name} exceeds the permitted maximum"
+        if rule.max_json_bytes is not None:
+            try:
+                encoded = len(json.dumps(value, default=str).encode())
+            except (TypeError, ValueError):
+                return f"INVALID_TOOL_ARGUMENTS: {name} is not serializable"
+            if encoded > rule.max_json_bytes:
+                return f"RESOURCE_LIMIT: {name} exceeds the permitted size"
     return None
 
 

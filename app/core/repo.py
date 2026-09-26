@@ -163,8 +163,10 @@ class Repository:
                 await conn.execute("SELECT * FROM sovereignty_counters WHERE id=1")
             ).fetchone()
             if row is None:
+                # OR IGNORE: a denied-egress counter may have created this row
+                # concurrently between the SELECT and the INSERT.
                 await conn.execute(
-                    "INSERT INTO sovereignty_counters(id,since) VALUES(1,?)", (_now(),)
+                    "INSERT OR IGNORE INTO sovereignty_counters(id,since) VALUES(1,?)", (_now(),)
                 )
                 await conn.commit()
                 row = await (

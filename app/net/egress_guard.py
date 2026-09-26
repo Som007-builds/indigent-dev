@@ -51,7 +51,20 @@ def _allowed_hosts() -> set[str]:
     return {urlparse(url).hostname or "" for url in (_settings.ollama_base_url, _settings.qdrant_url)}
 
 
-def _is_local_or_private(host: str) -> bool:
+def _host_text(host: Any) -> str:
+    """Normalize a resolver/connect host to text.
+
+    asyncio and anyio pass the host to ``getaddrinfo`` as ``bytes`` on some paths. A
+    bytes host previously fell through every rule and was denied, which broke the
+    loopback readiness probe. Decoding first keeps the identical allow/deny decision.
+    """
+    if isinstance(host, bytes):
+        return host.decode("ascii", "ignore")
+    return host if isinstance(host, str) else str(host)
+
+
+def _is_local_or_private(host: Any) -> bool:
+    host = _host_text(host)
     try:
         address = ipaddress.ip_address(host)
         return address.is_loopback or address.is_private
@@ -63,7 +76,7 @@ def _allowed(address: Any) -> tuple[bool, bool]:
     """Return (permitted, counts_as_external); unix sockets remain out of scope."""
     if not isinstance(address, tuple) or not address:
         return True, False
-    host = str(address[0])
+    host = _host_text(address[0])
     if _is_local_or_private(host):
         return True, False
     if _settings and _settings.inference_mode == "groq" and host in _groq_ips:
@@ -90,6 +103,7 @@ def _connect_ex(sock: socket.socket, address: Any) -> int:
 
 
 def _getaddrinfo(host: str | None, *args: Any, **kwargs: Any) -> list[Any]:
+    host = _host_text(host) if host is not None else None
     if host is None or _is_local_or_private(host):
         return _original_getaddrinfo(host, *args, **kwargs)
     if host in _allowed_hosts():
