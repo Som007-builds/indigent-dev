@@ -4,9 +4,9 @@ import asyncio
 
 import pytest
 
+from app.agent.registry import ModelRegistry
 from app.agent.resource_manager import ResourceManager, ResourceSnapshot
 from app.agent.router import ModelRouter
-from app.agent.registry import ModelRegistry
 from app.config import Settings
 from app.errors import ModelUnavailableError
 from app.providers.types import ModelInfo, ProviderHealth

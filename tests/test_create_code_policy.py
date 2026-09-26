@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from app.agent.coding import GeneratedCode, CodingRepairLoop
+from app.agent.coding import CodingRepairLoop, GeneratedCode
 from app.contracts.models import TaskContext, ToolRequest, ToolResult
 from app.policy.validator import PolicyValidatorImpl
 

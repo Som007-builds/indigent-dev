@@ -73,6 +73,31 @@ async def test_egress_guard_denies_public_ip_without_network(monkeypatch, tmp_pa
 
 
 @pytest.mark.asyncio
+async def test_egress_guard_resolves_loopback_passed_as_bytes(monkeypatch, tmp_path):
+    """asyncio hands getaddrinfo a bytes host; loopback must still resolve."""
+    settings, repo, audit = await _components(tmp_path)
+    monkeypatch.setattr(
+        egress_guard, "_original_getaddrinfo", lambda *args, **kwargs: [(2, 1, 6, "", ("127.0.0.1", 6333))]
+    )
+    permitted: list = []
+    monkeypatch.setattr(egress_guard, "_original_connect", lambda _, address: permitted.append(address))
+    egress_guard.install(settings, repo, audit)
+    try:
+        assert egress_guard.socket.getaddrinfo(b"localhost", 6333, type=socket.SOCK_STREAM)
+        assert egress_guard.socket.getaddrinfo("localhost", 6333, type=socket.SOCK_STREAM)
+        sock = socket.socket()
+        try:
+            sock.connect((b"127.0.0.1", 8000))
+        finally:
+            sock.close()
+        assert permitted == [(b"127.0.0.1", 8000)]
+        with pytest.raises(EgressDeniedError):
+            egress_guard.socket.getaddrinfo(b"api.groq.com", 443, type=socket.SOCK_STREAM)
+    finally:
+        egress_guard.reset_for_testing()
+
+
+@pytest.mark.asyncio
 async def test_models_failure_returns_clean_503(tmp_path):
     class BrokenModels:
         def status(self):

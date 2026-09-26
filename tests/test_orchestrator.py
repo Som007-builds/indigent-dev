@@ -12,9 +12,9 @@ from app.agent.orchestrator import (
 from app.agent.registry import ModelRegistry
 from app.agent.resource_manager import ResourceManager
 from app.agent.router import ModelRouter
+from app.artifact_validation import ArtifactValidationContext, ArtifactValidationResult
 from app.config import Settings
 from app.contracts.models import ArtifactManifest, PolicyDecision, TaskContext
-from app.artifact_validation import ArtifactValidationContext, ArtifactValidationResult
 from app.providers.types import InferenceResult, ModelInfo, ProviderHealth, ToolSchema
 
 
@@ -331,3 +331,76 @@ async def test_orchestrator_cannot_bypass_denied_policy():
     result = await events(make_orchestrator(tools=tools, policy=policy))
     assert result[-1].data["error"]["code"] == "TOOL_NOT_ALLOWED"
     assert policy.calls == 1 and tools.calls == 0
+
+
+class RecordingStore:
+    """Minimal ArtifactStore double recording lifecycle calls (item 8)."""
+
+    def __init__(self, manifest: ArtifactManifest | None = None):
+        self.packaged = 0
+        self.statuses: list[tuple[str, str]] = []
+        self.manifest = manifest or ArtifactManifest(
+            artifact_id="a1", task_id="task", artifact_type="docx", path="/tmp/a1.docx",
+            created_at="2026-09-25T10:00:00Z", artifact_hash="h",
+        )
+
+    async def package_code(self, ctx):
+        self.packaged += 1
+        return self.manifest.model_copy(update={"artifact_id": "code-pkg", "artifact_type": "code_package"})
+
+    async def set_verification_status(self, artifact_id: str, status: str) -> None:
+        self.statuses.append((artifact_id, status))
+
+
+class Services:
+    def __init__(self, store: RecordingStore):
+        self.artifacts = store
+        self.runtime = None
+        self.policy = Policy()
+        self.artifact_handler = ManifestArtifacts()
+
+
+class ManifestArtifacts:
+    def __init__(self):
+        self.created = 0
+
+    async def create(self, task):
+        self.created += 1
+        return [
+            ArtifactManifest(
+                artifact_id=f"a{self.created}", task_id=task.task_id, artifact_type="docx",
+                path="/tmp/a.docx", created_at="2026-09-25T10:00:00Z", artifact_hash="h",
+            )
+        ]
+
+    async def validate(self, task):
+        return True, [{"name": "content", "passed": True}]
+
+
+@pytest.mark.asyncio
+async def test_coding_task_packages_code_and_persists_verification_status():
+    store = RecordingStore()
+    planner = Planner(task_type="coding", plan_steps=["create_code"])
+    orchestrator = make_orchestrator(planner=planner, artifacts=ManifestArtifacts())
+    orchestrator._artifact_store = lambda services: store  # type: ignore[method-assign]
+    ctx = context()
+    ctx.task_type = "coding"
+    result = [event async for event in orchestrator.run(ctx, "write code", [])]
+    assert result[-1].type == "completed"
+    assert store.packaged == 1
+    assert store.statuses and all(status == "passed" for _, status in store.statuses)
+
+
+@pytest.mark.asyncio
+async def test_failed_artifact_validation_marks_manifests_failed():
+    class Failing(ManifestArtifacts):
+        async def validate(self, task):
+            return False, [{"name": "content", "passed": False}]
+
+    store = RecordingStore()
+    orchestrator = make_orchestrator(artifacts=Failing())
+    orchestrator._artifact_store = lambda services: store  # type: ignore[method-assign]
+    result = await events(orchestrator)
+    assert result[-1].data["error"]["code"] == "ARTIFACT_VALIDATION_FAILED"
+    assert store.statuses and all(status == "failed" for _, status in store.statuses)
+    assert store.packaged == 0
