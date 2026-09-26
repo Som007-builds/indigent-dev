@@ -4,7 +4,7 @@ from typing import Any
 import httpx
 
 from .http import message_payload, response_text, tool_payload
-from .types import InferenceResult, Message, ProviderHealth, ToolSchema
+from .types import ImageInput, InferenceResult, Message, ProviderHealth, ToolSchema
 
 
 class GroqProvider:
@@ -44,7 +44,19 @@ class GroqProvider:
             usage.get("completion_tokens"),
         )
 
+    def generate_with_images(
+        self,
+        model_id: str,
+        messages: list[Message],
+        images: list[ImageInput],
+        tools: list[ToolSchema] | None = None,
+    ) -> InferenceResult:
+        raise NotImplementedError("Groq multimodal inference is not supported by this adapter")
+
     def is_local(self) -> bool:
+        return False
+
+    def supports_images(self) -> bool:
         return False
 
     def health_check(self) -> ProviderHealth:

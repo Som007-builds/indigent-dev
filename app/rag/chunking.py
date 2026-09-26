@@ -37,16 +37,22 @@ def chunk_document(
         content = text[start:end]
         if content:
             chunk_id = f"{document.document_id}:{index}"
+            metadata = dict(document.metadata)
+            page_starts = metadata.get("page_starts")
+            page = None
+            if isinstance(page_starts, list):
+                page = sum(1 for page_start in page_starts if isinstance(page_start, int) and page_start <= start) or None
             chunks.append(
                 Chunk(
                     chunk_id=chunk_id,
                     document_id=document.document_id,
                     source_hash=document.source_hash,
                     text=content,
+                    page=page,
                     source_reference=document.source_path,
                     start_char=start,
                     end_char=end,
-                    metadata=dict(document.metadata),
+                    metadata=metadata,
                 )
             )
             index += 1

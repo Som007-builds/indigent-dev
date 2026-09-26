@@ -34,7 +34,7 @@ class RagIngestor(Protocol):
 
 
 class PidPipeline(Protocol):
-    def extract_pid_graph(self, image_path: str) -> PIDGraph: ...
+    async def extract_pid_graph(self, image_path: str) -> PIDGraph: ...
 
 
 class MlTools(Protocol):

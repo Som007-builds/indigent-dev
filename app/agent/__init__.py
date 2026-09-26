@@ -3,6 +3,7 @@ from .registry import ModelRegistry
 from .resource_manager import HardwareResources, ResourceManager, ResourceSnapshot
 from .router import ModelRouter
 from .state import InvalidTransitionError, TaskSnapshot
+from .verification import TaskVerificationError, TaskVerifier
 
 __all__ = [
     "BoundedOrchestrator",
@@ -14,4 +15,6 @@ __all__ = [
     "OrchestratorDependencies",
     "InvalidTransitionError",
     "TaskSnapshot",
+    "TaskVerificationError",
+    "TaskVerifier",
 ]

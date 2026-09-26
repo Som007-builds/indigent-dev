@@ -4,6 +4,7 @@ from .interfaces import (
     DocumentIngestor,
     Embedder,
     OcrExtractor,
+    ReplaceableDocumentVectorStore,
     Reranker,
     TextExtractor,
     VectorStore,
@@ -17,6 +18,15 @@ from .models import (
     EvidenceProvenance,
     RetrievalResult,
     VerificationProvenance,
+)
+from .production import (
+    LocalDocumentExtractor,
+    LocalEmbeddingError,
+    LocalPDFTextExtractor,
+    OllamaEmbeddingAdapter,
+    ProductionDocumentIngestor,
+    ProductionRagIngestor,
+    QdrantVectorStore,
 )
 from .retrieval import LexicalReranker, Retriever
 from .store import InMemoryVectorStore
@@ -35,10 +45,19 @@ __all__ = [
     "EvidenceProvenance",
     "InMemoryVectorStore",
     "LexicalReranker",
+
+    "OllamaEmbeddingAdapter",
+    "LocalDocumentExtractor",
+    "LocalEmbeddingError",
+    "LocalPDFTextExtractor",
     "MalformedVerificationError",
     "OcrExtractor",
     "PlainTextExtractor",
+    "ProductionDocumentIngestor",
+    "ProductionRagIngestor",
+    "QdrantVectorStore",
     "Reranker",
+    "ReplaceableDocumentVectorStore",
     "RetrievalResult",
     "Retriever",
     "TextExtractor",

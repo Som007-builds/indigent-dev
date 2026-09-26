@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import asdict, is_dataclass
 from typing import Any
 
@@ -20,13 +21,33 @@ class Retriever:
         self.store = store
         self.reranker = reranker
 
-    def retrieve(self, query: str, *, limit: int = 5) -> RetrievalResult:
+    def retrieve(
+        self,
+        query: str,
+        *,
+        limit: int = 5,
+        document_ids: Sequence[str] | None = None,
+        require_scope: bool = True,
+    ) -> RetrievalResult:
+        """Retrieve evidence for ``query``.
+
+        Evidence isolation is fail-closed: callers serving per-task evidence must pass
+        ``document_ids`` for the documents that task is allowed to see. An unscoped
+        production query raises rather than leaking another task's knowledge base.
+        ``require_scope=False`` exists only for explicitly shared corpora.
+        """
         if not isinstance(query, str) or not query.strip() or limit < 1:
             return RetrievalResult(query=query if isinstance(query, str) else "")
+        if require_scope and document_ids is None:
+            raise ValueError("retrieval requires an explicit document scope")
+        if document_ids is not None:
+            if isinstance(document_ids, (str, bytes)):
+                raise ValueError("document scope must be a sequence of ids")
+            document_ids = [str(value) for value in document_ids]
         vectors = self.embedder.embed([query])
         if len(vectors) != 1:
             raise ValueError("embedding interface returned an invalid result")
-        rows = self.store.search(vectors[0], limit)
+        rows = self.store.search(vectors[0], limit, document_ids=document_ids)
         items: list[EvidenceItem] = []
         for row in rows:
             item = self._item(row)

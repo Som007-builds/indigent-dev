@@ -22,7 +22,22 @@ class Embedder(Protocol):
 class VectorStore(Protocol):
     def upsert(self, chunks: Sequence[Chunk], vectors: Sequence[Sequence[float]]) -> None: ...
 
-    def search(self, vector: Sequence[float], limit: int) -> list[dict[str, Any]]: ...
+    def search(
+        self, vector: Sequence[float], limit: int, *, document_ids: Sequence[str] | None = None
+    ) -> list[dict[str, Any]]:
+        """Search the index.
+
+        ``document_ids`` restricts hits to the supplied documents. ``None`` means the
+        whole index and is only safe for explicitly shared corpora; callers that serve
+        per-task evidence must always pass the task's own document ids.
+        """
+        ...
+
+
+class ReplaceableDocumentVectorStore(VectorStore, Protocol):
+    def replace_document(
+        self, document_id: str, chunks: Sequence[Chunk], vectors: Sequence[Sequence[float]]
+    ) -> None: ...
 
 
 class Reranker(Protocol):

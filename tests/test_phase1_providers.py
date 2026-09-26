@@ -9,7 +9,7 @@ from app.config import Settings
 from app.errors import ModelUnavailableError
 from app.providers.groq import GroqProvider
 from app.providers.ollama import OllamaProvider
-from app.providers.types import Message, ModelInfo
+from app.providers.types import ImageInput, Message, ModelInfo
 
 
 def test_ollama_provider_uses_chat_contract(monkeypatch):
@@ -27,6 +27,34 @@ def test_ollama_provider_uses_chat_contract(monkeypatch):
     result = OllamaProvider().generate("llama", [Message("user", "hello")])
     assert result.text == "ok"
     assert result.provider == "ollama"
+
+
+def test_ollama_multimodal_serializes_actual_image_bytes(monkeypatch):
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = request.read()
+        return httpx.Response(200, json={"message": {"content": "graph"}})
+
+    transport = httpx.MockTransport(handler)
+    original_client = httpx.Client
+    monkeypatch.setattr(
+        httpx, "Client", lambda **kwargs: original_client(transport=transport, **kwargs)
+    )
+    result = OllamaProvider().generate_with_images(
+        "local-vlm", [Message("user", "analyze")], [ImageInput("image/png", b"png-bytes")]
+    )
+    payload = __import__("json").loads(seen["body"])
+    assert payload["messages"][-1]["content"] == "analyze"
+    assert payload["messages"][-1]["images"] == ["cG5nLWJ5dGVz"]
+    assert result.text == "graph"
+
+
+def test_groq_multimodal_fails_closed():
+    with pytest.raises(NotImplementedError, match="not supported"):
+        GroqProvider("secret").generate_with_images(
+            "model", [Message("user", "analyze")], [ImageInput("image/png", b"png")]
+        )
 
 
 def test_groq_health_requires_explicit_secret():

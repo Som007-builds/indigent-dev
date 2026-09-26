@@ -1,7 +1,7 @@
 # Backend Build PRD — Indigent
 
-**Post-shortlist build phase · Owners: Backend Dev A + Backend Dev B**  
-**ML Engineer owns model/RAG/CV internals, referenced at interface level only**  
+**Post-shortlist build phase · Owners: Backend Dev A + Backend Dev B**
+**ML Engineer owns model/RAG/CV internals, referenced at interface level only**
 **Status: v1.1 — build specification**
 
 ---

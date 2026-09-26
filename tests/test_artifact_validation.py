@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-import zipfile
 from pathlib import Path
 from typing import Literal, cast
 
@@ -34,9 +33,10 @@ def manifest(
 
 
 def make_docx(path: Path) -> None:
-    with zipfile.ZipFile(path, "w") as archive:
-        archive.writestr("[Content_Types].xml", "<Types></Types>")
-        archive.writestr("word/document.xml", "<document><body><p>Report</p></body></document>")
+    pytest.importorskip("docx")
+    from app.runtime.generators.docx import generate
+
+    generate(path, {"title": "Report", "recommendation": "Proceed", "sections": []})
 
 
 def test_valid_docx_and_hash_stability(tmp_path):
