@@ -5,6 +5,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from app.agent.inference import RoutedInferenceExecutor
 from app.agent.router import ModelRouter
 from app.providers import Message
 
@@ -36,18 +37,44 @@ class CitationVerifier:
         *,
         threshold: float = 0.75,
         verification_task_type: str = "inspection",
+        inference: RoutedInferenceExecutor | None = None,
     ) -> None:
         if not 0 <= threshold <= 1:
             raise ValueError("verification threshold must be between 0 and 1")
         self.router = router
         self.threshold = threshold
         self.verification_task_type = verification_task_type
+        self.inference = inference
 
-    def verify(self, claim: ClaimProvenance, evidence: EvidenceItem) -> CitationVerificationResult:
+    async def verify_citation(
+        self, claim: ClaimProvenance, evidence: EvidenceItem, *, task_id: str | None = None
+    ) -> CitationVerificationResult:
         model, provider = self.router.resolve(self.verification_task_type)
         prompt = self._prompt(claim, evidence)
-        response = provider.generate(model.model_id, [Message("user", prompt)])
-        parsed = self._parse(response.text)
+        messages = [Message("user", prompt)]
+        if self.inference is None:
+            response = provider.generate(model.model_id, messages)
+        else:
+            execution = await self.inference.generate(
+                model, provider, messages, task_id=task_id
+            )
+            response = execution.result
+        return self._result(claim, evidence, response.text)
+
+    def verify(self, claim: ClaimProvenance, evidence: EvidenceItem) -> CitationVerificationResult:
+        """Compatibility path for deterministic/unit callers without async runtime wiring."""
+        if self.inference is not None:
+            raise RuntimeError("use verify_citation() when a RoutedInferenceExecutor is configured")
+        model, provider = self.router.resolve(self.verification_task_type)
+        response = provider.generate(model.model_id, [Message("user", self._prompt(claim, evidence))])
+        return self._result(claim, evidence, response.text)
+
+    def _result(
+        self, claim: ClaimProvenance, evidence: EvidenceItem, text: str
+    ) -> CitationVerificationResult:
+        parsed = self._parse(text)
+        if not parsed["verified"] and parsed["confidence"] > self.threshold and parsed["reason"].lower() == "supported":
+            raise MalformedVerificationError("contradictory verification output")
         verified = parsed["verified"] and parsed["confidence"] >= self.threshold
         verification_id = str(uuid.uuid4())
         provenance = EvidenceProvenance(
@@ -83,7 +110,8 @@ class CitationVerifier:
             f"Document: {evidence.document_id}; source hash: {evidence.source_hash}"
         )
 
-    def _parse(self, text: str) -> dict[str, Any]:
+    @classmethod
+    def _parse(cls, text: str) -> dict[str, Any]:
         try:
             value = json.loads(text)
         except (TypeError, json.JSONDecodeError) as error:
@@ -100,6 +128,4 @@ class CitationVerifier:
             raise MalformedVerificationError("confidence must be between 0 and 1")
         if not isinstance(value["reason"], str) or not value["reason"].strip():
             raise MalformedVerificationError("reason must be a non-empty string")
-        if not value["verified"] and confidence > self.threshold and value["reason"].lower() == "supported":
-            raise MalformedVerificationError("contradictory verification output")
         return {"verified": value["verified"], "confidence": float(confidence), "reason": value["reason"]}
