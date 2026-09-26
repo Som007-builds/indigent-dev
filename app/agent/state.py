@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Literal
 
 from app.contracts.models import InferenceMode
@@ -50,6 +51,7 @@ class TaskSnapshot:
     user_request: str
     task_type: str | None
     inference_mode: InferenceMode
+    workspace: Path | None = None
     plan: list[str] = field(default_factory=list)
     current_state: TaskState = "INTAKE"
     model_used: str | None = None

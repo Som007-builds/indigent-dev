@@ -6,6 +6,14 @@ from .registry import ModelRegistry
 from .resource_manager import ResourceManager
 
 
+def _accepts_images(provider: InferenceProvider) -> bool:
+    """Fail closed for image-only work when the adapter does not declare image support."""
+    capability = getattr(provider, "supports_images", None)
+    if capability is None:
+        return False
+    return bool(capability() if callable(capability) else capability)
+
+
 class ModelRouter:
     def __init__(
         self,
@@ -19,7 +27,9 @@ class ModelRouter:
         self.providers = providers
         self.resources = resources
 
-    def resolve(self, task_type: str, requested_model_id: str | None = None) -> tuple[ModelInfo, InferenceProvider]:
+    def resolve(
+        self, task_type: str, requested_model_id: str | None = None, *, requires_images: bool = False
+    ) -> tuple[ModelInfo, InferenceProvider]:
         mode = self.settings.inference_mode
         if requested_model_id is not None:
             model = self.registry.get(requested_model_id)
@@ -31,10 +41,16 @@ class ModelRouter:
         for model in candidates:
             if model is None or model.mode != mode or not model.available:
                 continue
+            if task_type not in model.task_types:
+                continue
+            if model.mode == "local" and self.settings.local_hardware_profile not in model.hardware_profiles:
+                continue
             if self.resources is not None and not self.resources.can_select(model):
                 continue
             provider = self.providers.get(model.provider)
             if provider is None or provider.is_local() != (mode == "local"):
+                continue
+            if requires_images and not _accepts_images(provider):
                 continue
             health = provider.health_check()
             if health.available:

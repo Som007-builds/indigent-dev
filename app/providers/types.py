@@ -9,6 +9,17 @@ class Message:
 
 
 @dataclass(frozen=True)
+class ImageInput:
+    media_type: Literal["image/png", "image/jpeg", "image/webp"]
+    data: bytes
+
+    def __post_init__(self) -> None:
+        if not self.data:
+            raise ValueError("image input must not be empty")
+
+
+
+@dataclass(frozen=True)
 class ToolSchema:
     name: str
     description: str = ""
@@ -37,9 +48,9 @@ class ProviderHealth:
 class ModelInfo:
     model_id: str
     model_name: str
-    provider: str
+    provider: Literal["ollama", "groq"]
     mode: Literal["local", "groq"]
-    task_types: frozenset[str]
-    hardware_profiles: frozenset[str] = frozenset()
+    task_types: frozenset[Literal["inspection", "coding", "pid_analysis"]]
+    hardware_profiles: frozenset[Literal["mac_silicon", "rtx_3050a_4gb"]] = frozenset()
     memory_estimate_mb: int = 0
     available: bool = True

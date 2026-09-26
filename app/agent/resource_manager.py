@@ -69,8 +69,23 @@ class ResourceManager:
         return ResourceRequirements(memory_mb=memory)
 
     def can_select(self, model: ModelInfo) -> bool:
+        """Admit a model against the live OS measurement.
+
+        The hardware adapter's available-memory value is an authoritative live reading
+        that already reflects memory consumed by every resident process, including models
+        this manager has loaded. Subtracting the in-process ``_reserved_memory_mb`` on top
+        of it would count the same allocation twice and make an already-resident model
+        permanently unselectable, so the OS reading is the only admission signal used.
+
+        A model that is already resident needs no new allocation at all, so it is admitted
+        without a fresh memory check. This also keeps selection working after the backing
+        provider evicts the model on its own idle timeout: the OS memory comes back, and a
+        stale ``_reserved_memory_mb`` must not keep rejecting the model.
+        """
         if not model.available:
             return False
+        if self.residency(model.model_id).loaded:
+            return True
         requirements = self.requirements(model)
         if requirements.memory_mb == 0:
             return True
@@ -78,7 +93,7 @@ class ResourceManager:
             return False
         snapshot = self.hardware.snapshot()
         available = snapshot.vram_mb_available if model.mode == "local" else snapshot.ram_mb_available
-        return available is not None and requirements.memory_mb <= available - self._reserved_memory_mb
+        return available is not None and requirements.memory_mb <= available
 
     def residency(self, model_id: str) -> Residency:
         return self._residency.get(model_id, Residency(model_id, False))

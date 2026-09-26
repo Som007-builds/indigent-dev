@@ -1,13 +1,24 @@
+import base64
 import json
 from typing import Any
 
 import httpx
 
-from .types import Message, ToolSchema
+from .types import ImageInput, Message, ToolSchema
 
 
 def message_payload(messages: list[Message]) -> list[dict[str, str]]:
     return [{"role": message.role, "content": message.content} for message in messages]
+
+
+def image_message_payload(
+    messages: list[Message], images: list[ImageInput]
+) -> list[dict[str, Any]]:
+    payload = message_payload(messages)
+    if not payload or payload[-1]["role"] != "user":
+        raise ValueError("image input must be attached to a final user message")
+    payload[-1]["images"] = [base64.b64encode(image.data).decode("ascii") for image in images]
+    return payload
 
 
 def tool_payload(tools: list[ToolSchema] | None) -> list[dict[str, Any]] | None:
