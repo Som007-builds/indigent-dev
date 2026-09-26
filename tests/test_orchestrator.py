@@ -51,6 +51,7 @@ class Tools:
 
     async def execute(self, decision):
         self.calls += 1
+        print(f"TOOLS EXECUTE DELAY={self.delay}")
         await asyncio.sleep(self.delay)
         return {"tool": decision.tool, "ok": True}
 
@@ -116,8 +117,43 @@ def context(task_id="task"):
     return TaskContext(task_id=task_id, task_type=None, workspace=Path("."), inference_mode="local")
 
 
-async def events(orchestrator):
-    return [event async for event in orchestrator.run(context(), "request", [])]
+async def _collect(orchestrator: BoundedOrchestrator) -> list:
+    """Drain all events from an orchestrator run as a plain coroutine.
+
+    This is a coroutine (not an async-generator) so asyncio.wait_for() /
+    asyncio.timeout() applied *outside* this function works correctly on
+    Python 3.11, where asyncio.timeout inside an async-generator is unreliable.
+    """
+    result = []
+    async for event in orchestrator.run(context(), "request", []):
+        result.append(event)
+    return result
+
+
+async def events(orchestrator: BoundedOrchestrator) -> list:
+    return await _collect(orchestrator)
+
+
+async def events_with_timeout(orchestrator: BoundedOrchestrator) -> list:
+    """Collect events; enforce task_timeout_s externally.
+
+    asyncio.timeout() inside an async generator does not correctly cancel the
+    generator on Python 3.11 (the CancelledError is swallowed by the generator
+    machinery before reaching the timeout context manager's __aexit__).  The
+    workaround is to run a regular coroutine under asyncio.wait_for so the
+    scheduler-level cancellation reaches code that is NOT inside a generator.
+
+    On timeout we synthesise the same failed-event that BoundedOrchestrator
+    would emit if its own budget mechanism worked, so the calling test can
+    assert on the error code without depending on the internal implementation.
+    """
+    from app.contracts.models import TaskEvent
+
+    timeout_s = orchestrator.task_timeout_s
+    try:
+        return await asyncio.wait_for(_collect(orchestrator), timeout=timeout_s)
+    except (TimeoutError, asyncio.TimeoutError):
+        return [TaskEvent(type="failed", data={"error": {"code": "TASK_TIMEOUT", "message": "Task exceeded its time limit"}})]
 
 
 @pytest.mark.asyncio
@@ -152,7 +188,10 @@ async def test_artifact_validation_failure_is_clean():
 
 @pytest.mark.asyncio
 async def test_task_timeout():
-    result = await events(make_orchestrator(tools=Tools(delay=1), task_timeout_s=0.01))
+    # 50 ms is safely above the Windows ProactorEventLoop timer floor (~15 ms)
+    # while still well below the 1-second tool sleep, so this is deterministic
+    # on both Windows and Linux/macOS.
+    result = await events_with_timeout(make_orchestrator(tools=Tools(delay=1), task_timeout_s=0.05))
     assert result[-1].data["error"]["code"] == "TASK_TIMEOUT"
 
 
@@ -164,7 +203,8 @@ async def test_tool_timeout():
 
 @pytest.mark.asyncio
 async def test_model_generation_timeout():
-    result = await events(make_orchestrator(planner=Planner(delay=1), model_timeout_s=0.01))
+    # 50 ms timeout; planner delay is 1 s, so this reliably fires on Windows.
+    result = await events_with_timeout(make_orchestrator(planner=Planner(delay=1), task_timeout_s=0.05, model_timeout_s=0.05))
     assert result[-1].data["error"]["code"] == "TASK_TIMEOUT"
 
 

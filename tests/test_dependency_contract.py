@@ -11,7 +11,6 @@ environment reproducible.
 from __future__ import annotations
 
 import re
-import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -48,16 +47,30 @@ def _declared() -> set[str]:
 
 
 def _imported() -> set[str]:
-    # Imports are frequently function-local, so leading whitespace must be allowed.
-    out = subprocess.run(
-        [
-            "grep", "-rhoE",
-            r"^[[:space:]]*(from|import)[[:space:]]+[A-Za-z_][A-Za-z_0-9]*",
-            "app", "tools", "--include=*.py",
-        ],
-        cwd=ROOT, capture_output=True, text=True, check=True,
-    ).stdout
-    return {line.split()[1].lower() for line in out.splitlines()}
+    """Walk app/ and tools/ to collect every top-level import name.
+
+    Pure-Python implementation so the test runs on Windows (no grep binary
+    required) and in sandboxed environments where subprocess PATH is minimal.
+    The regex matches both leading-whitespace (function-local) imports and
+    top-level imports, matching the original grep pattern exactly.
+    """
+    pattern = re.compile(
+        r"^[ \t]*(?:from|import)\s+([A-Za-z_][A-Za-z_0-9]*)",
+        re.MULTILINE,
+    )
+    names: set[str] = set()
+    for directory in ("app", "tools"):
+        base = ROOT / directory
+        if not base.is_dir():
+            continue
+        for py_file in base.rglob("*.py"):
+            try:
+                text = py_file.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            for match in pattern.findall(text):
+                names.add(match.lower())
+    return names
 
 
 def test_every_imported_third_party_module_is_declared():

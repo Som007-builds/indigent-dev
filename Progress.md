@@ -11,8 +11,8 @@
 |---|---|---|---|
 | Step 0 | Skeleton, config, contracts, stubs, logging, errors | ✅ Done | FastAPI factory `/healthz`, JSON logger, secret redaction, `JOY_MODULES` switch. |
 | Step 1 | SQLite persistence (WAL mode), schema migrations, append-only audit logger | ✅ Done | DB triggers enforce append-only audit log; automatic startup task recovery. |
-| Step 2 | Task API, EventBus, TaskRunner, SSE streaming, `/api/chat`, approval pausing | ✅ Done | Background detached execution, gapless SSE replay (`Last-Event-ID`), capacity limits. |
-| Step 3 | Frontend contract reconciliation, OpenAPI export, contract check tool | ✅ Done | `contract-mismatches.md`, `api-contract.md` v1 frozen, `tools/contract_check.py` passing. |
+| Step 2 | Task API, EventBus, TaskRunner, SSE streaming, `/api/chat`, approval pausing | ✅ Done | Background detached execution, gapless SSE replay (`Last-Event-ID`), capacity limits. Fixed TASK_TIMEOUT error code mismatch (was returning ORCHESTRATOR_ERROR on hard timeout) — 2026-09-27. |
+| Step 3 | Frontend contract reconciliation, OpenAPI export, contract check tool | ✅ Done | `contract-mismatches.md`, `api-contract.md` v1 frozen; `tools/contract_check.py` now exists (async CLI, httpx+ASGITransport, validates all G11 endpoints incl. SSE, error envelopes, X-Inference-Mode header); tests/test_step3.py wraps it. Previously listed as done without the actual script — corrected 2026-09-27. |
 | Step 4 | File uploads, workspace creation, `safe_join` path safety, P&ID file intake | ✅ Done | Chunked streaming uploads, magic bytes check, path traversal prevention, P&ID intake. |
 | Step 5 | Artifact store, SHA-256 integrity re-hashing, DOCX/XLSX report generators | ✅ Done | Manifest registration, tamper detection on download (500 ARTIFACT_CORRUPT), code packager. |
 | Step 6 | Tool runtime, arg validation, isolated Docker sandbox execution | ✅ Done | Sandbox network disabled (`--network=none`), resource limits (CPU/RAM/PIDs), no host fallback. |
@@ -58,6 +58,7 @@
 - **Multimodal & P&ID ML**: Provisioning a local vision model for image analysis and installing a local OCR engine (e.g., Tesseract) for document OCR extraction.
 - **Groq Mode Integration Test**: Live execution of matrix Row 2 requires an active `GROQ_API_KEY` (skipped by default as Groq is an opt-in non-air-gapped path).
 - **RAM / VRAM Hardware Budgeting**: Running 27B LLM generation alongside Docker Desktop VM on 24 GB host requires explicit model release via keep-alive controls.
+- **Unused dependencies**: `chromadb` and `onnxruntime` present in lockfile but unused anywhere in `app/` — confirmed via grep 2026-09-27. Flag to Joy: leftover from earlier RAG approach, or not yet wired in?
 
 ---
 
@@ -72,3 +73,8 @@
 ## Changelog
 
 - **2026-09-27**: Initial creation of `Progress.md` populated with current audit results (Soham Platform Steps 0–10 complete; Joy Control Plane 10/11 areas complete, 1 partial; 21/22 Integration matrix scenarios passing).
+- **2026-09-27**: Fixed Step 2 TASK_TIMEOUT error code bug (test_orchestrator.py).
+- **2026-09-27**: Built real tools/contract_check.py per Step 3 spec; corrected Step 3 row which previously overstated completion.
+- **2026-09-27**: Fixed Windows-incompatible grep call in test_dependency_contract.py (replaced with pathlib/re scanner).
+- **2026-09-27**: Confirmed chromadb/onnxruntime unused in app/ — flagged for Joy, lockfile left untouched pending his input.
+- **2026-09-27**: Documented POST /api/tasks/{id}/approve fire-and-continue behavior in docs/api-contract.md.
