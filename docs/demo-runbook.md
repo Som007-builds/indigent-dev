@@ -55,10 +55,14 @@ and `extract_pid_graph` tools fail closed. To close this, provision a local visi
 and re-verify; the router already requests `requires_images=True`, so nothing else
 changes.
 
-**`ocr_document` extracts text layers, it does not perform OCR.** A PDF or image with no
-text layer fails closed with `OCR_UNAVAILABLE`; the error names the remedy. To close
-this, install a local OCR engine (for example `tesseract`) and wire it into
-`LocalDocumentExtractor`. Do not add a cloud OCR service: it would break the air gap.
+**`ocr_document` extracts the text layer first, then falls back to real local OCR.** A PDF
+with no text layer is passed to Tesseract via `LocalDocumentExtractor` ->
+`LocalPDFTextExtractor` -> `OCRAdapter`, and OCR works today: no code change is needed,
+only the `tesseract` binary installed on the host. The adapter probes the binary once at
+startup, so restart the service after installing it. A page that yields no text through
+either path fails closed with `OCR_UNAVAILABLE` and the error names that remedy. Images are
+not accepted by this tool at all (`_DOCUMENT_SUFFIXES` is text and PDF only). Do not add a
+cloud OCR service: it would break the air gap.
 
 **Only the 27B generation model fits, and only once.** It holds about 19.4 GB of unified
 memory. While it is resident, `/api/models` reports roughly 1 GB free and

@@ -428,10 +428,111 @@ def test_real_app_boots_and_serves_the_real_control_plane(
         assert all(value in ("ok", "fail") for value in checks.values())
 
 
-def test_real_app_refuses_groq_inference_mode(real_settings, offline_transports):
+def test_real_app_refuses_groq_inference_mode_when_no_groq_model_is_provisioned(
+    real_settings, offline_transports
+):
     """Real mode must not silently fall back to local when the mode is not provisioned."""
     from app.main import create_app
 
     real_settings.data_dir.mkdir(parents=True, exist_ok=True)
     with pytest.raises(RuntimeError, match="no enabled model for configured inference mode"):
         create_app(real_settings.model_copy(update={"inference_mode": "groq"}))
+
+
+# --------------------------------------------------------------------------- #
+# A provisioned groq inventory must be usable: real mode is gated on the
+# inventory declaring an enabled model for the configured mode, not on the mode
+# being local. An unconditional "requires explicit local inference mode" guard
+# used to sit immediately after the inventory check and made that check dead for
+# groq, contradicting docs/decisions.md and the test renamed above.
+# --------------------------------------------------------------------------- #
+
+GROQ_INVENTORY = json.dumps(
+    [
+        {
+            "model_id": "smoke-local",
+            "provider": "ollama",
+            "mode": "local",
+            "task_capabilities": ["inspection", "coding", "pid_analysis"],
+            "hardware_profiles": ["mac_silicon"],
+            "memory_estimate_mb": 2048,
+        },
+        {
+            "model_id": "smoke-groq",
+            "provider": "groq",
+            "mode": "groq",
+            "task_capabilities": ["inspection", "coding", "pid_analysis"],
+            # A remote endpoint occupies no local VRAM, so it claims no hardware profile.
+            "hardware_profiles": [],
+            "memory_estimate_mb": 1,
+            "enabled": True,
+        },
+    ]
+)
+
+
+@pytest.fixture
+def groq_real_settings(tmp_path) -> Settings:
+    return Settings(
+        joy_modules="real",
+        inference_mode="groq",
+        local_hardware_profile="mac_silicon",
+        data_dir=tmp_path / "data",
+        model_inventory_json=GROQ_INVENTORY,
+        embedding_backend="ollama",
+        embedding_model="smoke-embedding",
+        embedding_vector_size=4,
+        qdrant_url="http://127.0.0.1:6333",
+        qdrant_collection="evidence",
+        resource_max_concurrency=1,
+        # Only RAM is stated. VRAM is deliberately left unstated so this test fails
+        # loudly if groq admission ever starts depending on local VRAM.
+        hardware_ram_budget_mb=4096,
+        # Not a credential: a fixed placeholder so no real key is needed or stored.
+        groq_api_key="test-placeholder-not-a-real-key",
+    )
+
+
+@pytest.fixture
+def groq_endpoint_available(monkeypatch):
+    """Report the opt-in Groq endpoint as reachable.
+
+    Transport-level stub of the health probe only, mirroring ``local_model_available``:
+    the suite must make zero external calls (AGENTS.md G3). It does not create an
+    account or a model, and it does not stand in for admission -- the unprovisioned
+    case stays asserted by the test renamed above.
+    """
+    from app.providers.groq import GroqProvider
+    from app.providers.types import ProviderHealth
+
+    monkeypatch.setattr(
+        GroqProvider, "health_check", lambda self: ProviderHealth("groq", True)
+    )
+
+
+def test_real_app_boots_and_routes_when_a_groq_model_is_provisioned(
+    groq_real_settings, offline_transports, groq_endpoint_available
+):
+    """The inventory check is the only gate; a provisioned groq mode must serve.
+
+    Recorded as a regression test for the removed unconditional guard: the earlier
+    version of this condition raised "currently requires explicit local inference
+    mode" even with an enabled groq model present.
+    """
+    from app.deps import build_model_routing, build_real_services
+
+    groq_real_settings.data_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        services, plane, rag, pid = build_real_services(groq_real_settings)
+    except RuntimeError as error:
+        pytest.fail(f"real mode refused a provisioned groq inventory: {error}")
+
+    assert services.policy is not None
+    assert plane is not None
+
+    # One step further: the composed router must actually select the remote model.
+    _registry, router, _resources, _providers = build_model_routing(groq_real_settings)
+    model, provider = router.resolve("inspection")
+    assert model.model_id == "smoke-groq"
+    assert model.mode == "groq"
+    assert provider.is_local() is False, "groq mode must never resolve a local provider"

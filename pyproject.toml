@@ -12,6 +12,19 @@ dependencies = [
   "pymupdf>=1.24"
 ]
 
+[project.optional-dependencies]
+# Dev/test toolchain only: nothing under app/ may import any of these.
+#
+# `make setup` does NOT read this section -- it installs requirements.lock, which is
+# generated to already contain this closure, so a clean venv can run `make test` and
+# `ruff check .` without a second command. This section exists so `pip install -e
+# ".[dev]"` and IDE resolution agree with the lock rather than diverging from it.
+dev = [
+  "pytest>=8.4,<10",
+  "pytest-asyncio>=1.4,<2",
+  "ruff>=0.16",
+]
+
 [tool.setuptools.packages.find]
 include = ["app*"]
 

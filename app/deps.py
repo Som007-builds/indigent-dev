@@ -305,8 +305,6 @@ def build_real_services(
         raise RuntimeError(f"JOY_MODULES=real requires production model configuration: {error}") from error
     if not any(item.mode == settings.inference_mode and item.enabled for item in inventory):
         raise RuntimeError("JOY_MODULES=real has no enabled model for configured inference mode")
-    if settings.inference_mode == "groq":
-        raise RuntimeError("JOY_MODULES=real currently requires explicit local inference mode")
 
     from app.agent.answer import GroundedAnswerGenerator
     from app.agent.grounded_artifact import GroundedAnswerArtifactHandler
@@ -541,15 +539,22 @@ class _ProductionRetrievalTools:
     def _ocr_document(self, ctx: Any, args: dict) -> dict:
         """Extract real text from a document in the task workspace.
 
-        This uses the local document text layer. A scanned page has no text layer and no
-        OCR engine is provisioned on this deployment, so it fails closed rather than
-        inventing a transcription. The error names the remedy so an operator can resolve
-        the gap instead of guessing.
+        This uses the local document text layer (PyMuPDF) and falls back to real
+        Tesseract OCR for a scanned page, through LocalDocumentExtractor ->
+        LocalPDFTextExtractor -> OCRAdapter. No code change is needed to enable it:
+        OCR works today once the Tesseract binary is installed on the host, which
+        OCRAdapter.available() reports by probing that binary. Image inputs are out of
+        scope for this tool -- _DOCUMENT_SUFFIXES covers text and PDF only.
+
+        When neither path yields text the tool fails closed rather than inventing a
+        transcription. The error names the missing host dependency so an operator can
+        resolve it instead of guessing.
         """
         remedy = (
-            "no local OCR engine is provisioned; install a local OCR engine such as "
-            "tesseract and wire it into LocalDocumentExtractor, or supply a "
-            "text-layer document"
+            "no text could be extracted locally; if this is a scanned page, install the "
+            "tesseract OCR engine on the host and restart the service so the adapter "
+            "re-probes it (no code change is needed), or supply a document that has a "
+            "text layer"
         )
         if self.extractor is None:
             raise MLToolUnavailable("OCR_UNAVAILABLE", remedy)
