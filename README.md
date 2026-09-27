@@ -4,7 +4,7 @@
 
 Built for **Smart India Hackathon 2026 · Problem Statement 26117**.
 
-Status: Core control plane, real-mode composition, RAG ingestion/retrieval, grounded answer verification, P&ID integration, and artifact validation are implemented and tested. End-to-end runtime integration and remaining multimodal/tooling work are in progress. See [Current development status](#current-development-status).
+Status: Real-mode control plane, local Ollama inference, model routing and residency tracking, production RAG ingestion/retrieval, grounded answer generation and citation verification, P&ID pipeline integration, artifact validation, calculations/provenance handling, and sovereignty telemetry are implemented and tested. Live validation has confirmed Qwen3 14B local generation, document-scoped retrieval, grounded answers, citation verification, and air-gapped operation. Remaining work is focused on full artifact/tool workflows, multimodal runtime dependencies, frontend/API integration, and final demo hardening.
 
 [Why Indigent](#why-indigent) · [How it works](#core-principles) · [Quick start](#quick-start) · [Architecture](#architecture) · [Status](#current-development-status) · [Roadmap](#roadmap) · [Contributing](#contributing)
 
@@ -128,22 +128,28 @@ Other security properties: fail-closed validation, workspace confinement, path-t
 
 ## Quick start
 
-The repo ships the Joy control-plane implementation with real-mode composition, local RAG, grounded verification, artifact validation, and integration tests. Full product/UI workflows are still being completed.
+The repo contains the real-mode application composition, local Ollama inference, Qdrant-backed RAG, grounded verification, artifact validation, and the bounded agent control plane.
 
 ```bash
-# ⚠ placeholder — replace with the actual setup command from docs/demo-runbook.md
-pip install -r requirements.txt   # or the project's declared dependency file
+# Install dependencies
+uv sync
 
-# Run the full test suite
-pytest -q
+# Start Qdrant
+docker compose up -d qdrant
+
+# Start the API
+uv run uvicorn app.main:app --reload
+
+# Run the test suite
+uv run pytest -q
 
 # Static compilation check
-python3 -m compileall -q app tests
+uv run python -m compileall app tests
 ```
 
-Expected result: **347 tests passing, 14 skipped, 3 deselected** in the non-Docker suite. Live integration tests additionally exercise local Ollama and Qdrant when configured.
+The local demo configuration uses Ollama for inference. The default generation model on the Mac Apple Silicon profile is `qwen3:14b`; `qwen3.8-27b-abliterated:latest` remains available as an alternate local model. Embeddings use `embeddinggemma:latest` with a 768-dimensional Qdrant collection.
 
-Local inference runs through [Ollama](https://ollama.com). Production config sets `INFERENCE_MODE=local`. Groq is only enabled deliberately, for development or testing.
+Production/demo execution uses `INFERENCE_MODE=local`. Groq remains an explicitly configured development/testing provider and is never used as a silent fallback.
 
 ---
 
@@ -151,15 +157,15 @@ Local inference runs through [Ollama](https://ollama.com). Production config set
 
 | Layer | Capabilities |
 |---|---|
-| **Inference & model control** | Provider abstraction, local Ollama provider, explicit Groq dev/test provider, health checks, explicit inference modes, model registry, task-aware routing, hardware-profile-aware selection, `ModelUnavailableError`, no silent cross-mode fallback |
-| **Resource management** | Model residency tracking, active-request tracking, memory requirement config, bounded concurrency, load/unload hooks — no fabricated GPU telemetry |
-| **Bounded orchestration** | Explicit execution states, dynamic planning hooks, task classification, retrieval integration, tool boundaries, verification, bounded repair, human approval, hard task/model/tool timeouts |
+| **Inference & model control** | Provider abstraction, local Ollama provider, explicit Groq dev/test provider, health checks, explicit inference modes, model registry, task-aware routing, hardware-profile-aware selection, model residency synchronization with Ollama, resource-aware selection, `ModelUnavailableError`, no silent cross-mode fallback |
+| **Resource management** | Model residency tracking, Ollama `/api/ps` synchronization, active-request tracking, memory requirements, bounded concurrency, load/unload lifecycle hooks, hardware-aware resource checks |
+| **Bounded orchestration** | Explicit execution states, dynamic planning, task classification, retrieval integration, tool boundaries, verification, bounded repair, human approval, hard task/model/tool timeouts |
 | **Policy validation** | Task/tool authorization, allowlists, argument validation, unexpected-field rejection, path-traversal and absolute-path rejection, workspace boundary enforcement, file type/size limits, fail-closed behavior |
-| **RAG & evidence** | Document ingestion, source hashing, deterministic chunking, stable chunk IDs, Ollama embeddings, Qdrant vector storage, scoped retrieval, cosine similarity + reranking, evidence metadata, provenance preservation, and citation verification |
-| **Citation verification** | Claim-vs-evidence checking, structured output validation, confidence + explanation recording, provenance preservation, triggers bounded repair on failure |
+| **RAG & evidence** | Document ingestion, source hashing, deterministic chunking, stable chunk IDs, local Ollama embeddings, Qdrant vector storage, document-scoped retrieval, expanded candidate recall, cosine similarity + reranking, evidence metadata, provenance preservation, citation verification |
+| **Citation verification** | Claim-vs-evidence checking, structured output validation, confidence + explanation recording, provenance preservation, bounded repair on verification failure |
 | **Coding agent** | Generate → policy-validate → create → execute → test → deterministic verification → bounded repair, using exit codes/test results/runtime errors rather than asking an LLM if it worked |
-| **Multimodal / P&ID** | Structured `PIDGraph` representation (nodes, edges, bounding boxes, confidence, overlay reference, narrative), graph validation for stable IDs, unique nodes, valid edges, confidence bounds |
-| **Artifact validation** | Structural + semantic checks, claim/evidence linkage, citation validation, deterministic calculation checks, provenance checks, SHA-256 artifact hashing, explicit `VALID` / `INVALID` / `UNVERIFIED` states |
+| **Multimodal / P&ID** | Structured `PIDGraph` representation with nodes, edges, bounding boxes, confidence, overlay reference, narrative, graph validation, and image-capability-aware routing; OCR pipeline supports rendered-PDF OCR when Tesseract is available |
+| **Artifact generation & validation** | DOCX/XLSX artifact generation, grounded findings, citation/evidence linkage, calculations with validated `name`/`formula`/`inputs`/`result` structure, deterministic semantic checks, provenance checks, SHA-256 artifact hashing, explicit `VALID`/`INVALID`/`UNVERIFIED` states |
 
 Supported hardware profiles today: **Mac Apple Silicon**, and **Windows/Linux with an RTX 3050A 4GB**.
 
@@ -175,30 +181,32 @@ There is no unbounded self-correction loop anywhere in the system.
 
 ## Current development status
 
-The repo contains the Joy control-plane implementation, real-mode service composition, production RAG path, grounded answer verification, P&ID integration, artifact validation, and integration tests. Full product workflows remain under active development.
+The repo contains the Joy control-plane implementation, real-mode service composition, production local RAG path, grounded answer verification, model lifecycle/resource management, P&ID integration, artifact validation, and sovereignty telemetry. Live testing has also validated the Qwen3 14B generation path and air-gapped operation against a real ingested document.
 
 **Implemented and tested**
-- Inference provider abstraction, Ollama provider, Groq dev/test provider
+- Inference provider abstraction, Ollama provider, explicit Groq dev/test provider
 - Model registry and hardware-aware routing
-- Resource manager and bounded concurrency
+- Ollama residency synchronization and resource-aware model selection
 - Bounded orchestrator with verification and repair
 - Deterministic policy validation and tool authorization
 - Production Ollama embeddings + Qdrant RAG ingestion/retrieval
+- Expanded retrieval candidate recall and document-scoped retrieval
 - Evidence provenance and citation verification
 - Coding verification and bounded repair
 - P&ID graph pipeline integration
-- Artifact semantic validation and provenance checks
+- Artifact semantic validation, provenance, and calculation handling
+- DOCX/XLSX artifact generation paths
 - Real-mode application composition and sovereignty telemetry
+- Air-gapped local execution with zero external inference calls in local mode
 - Control-plane integration and failure/security test coverage
 
-**In progress**
-- Remaining physical tool implementations and runtime integrations
-- OCR/document-processing integration
-- Full multimodal provider transport
-- Complete artifact-generation workflows
+**Remaining work**
+- Complete physical tool/runtime integration across all supported workflows
+- Finish multimodal runtime transport where a local vision model is required
+- Full end-to-end artifact/demo acceptance workflow including human approval
 - Frontend/API contract integration
-- Remaining security/attack testing
-- End-to-end demo hardening and acceptance matrix completion
+- Remaining security/attack testing and demo hardening
+- Environment-dependent OCR validation where Tesseract is required
 
 We intentionally **fail closed** when production dependencies or adapters aren't configured, instead of silently substituting stubs or external services.
 
@@ -207,10 +215,14 @@ We intentionally **fail closed** when production dependencies or adapters aren't
 ## Testing
 
 ```bash
-pytest -q
+uv run pytest -q
 ```
 
-The current non-Docker test baseline is **347 passed, 14 skipped, 3 deselected**. Step 10 currently reports **22 passed, 3 skipped**. Coverage includes provider behavior, routing, resource management, orchestration, policy enforcement, RAG ingestion/retrieval, citation verification, coding verification, P&ID processing, artifact validation, application wiring, and failure/security behaviors.
+Current local baseline: 404 passed, 14 skipped, 3 deselected, with one Windows-specific hardware test requiring a Windows/compatible hardware environment. Focused RAG production tests report 15 passed, 1 skipped.
+
+Coverage includes provider behavior, model routing and residency, resource management, orchestration, policy enforcement, RAG ingestion/retrieval, citation verification, coding verification, P&ID processing, artifact generation/validation, application wiring, and failure/security behaviors.
+
+For live validation, the environment can exercise local Ollama generation, Qdrant retrieval, grounded-answer verification, artifact workflows, and sovereignty telemetry against real services.
 
 ---
 
@@ -219,35 +231,26 @@ The current non-Docker test baseline is **347 passed, 14 skipped, 3 deselected**
 ```text
 app/
 ├── agent/                 # orchestrator, router, registry, resource manager, state machine
+│   ├── answer.py
 │   ├── coding.py
+│   ├── grounded_artifact.py
 │   ├── orchestrator.py
 │   ├── registry.py
 │   ├── resource_manager.py
 │   ├── router.py
 │   └── state.py
-├── artifact_validation/
-│   └── validator.py
-├── policy/
-│   ├── allowlist.py
-│   ├── schemas.py
-│   └── validator.py
-├── providers/
-│   ├── base.py
-│   ├── groq.py
-│   ├── http.py
-│   ├── ollama.py
-│   └── types.py
-├── rag/                   # ⚠ unverified — needs sync against the actual app/rag/ tree, see note below
-│   ├── chunking.py
-│   ├── extractors.py
-│   ├── interfaces.py
-│   ├── models.py
-│   ├── retrieval.py
-│   ├── store.py
-│   └── verification/
-└── pid_ml/
-    ├── models.py
-    └── pipeline.py
+├── api/                   # HTTP API routes
+├── artifact_validation/   # structural and semantic artifact checks
+├── contracts/             # shared interfaces and typed contracts
+├── core/                  # task execution, persistence, and runtime helpers
+├── deps.py                # service composition / dependency wiring
+├── net/                   # network and egress controls
+├── pid_ml/                # P&ID graph pipeline
+├── policy/                # allowlists, schemas, policy validation
+├── providers/              # Ollama/Groq provider implementations
+├── rag/                   # extraction, OCR, chunking, embeddings, Qdrant, retrieval
+├── runtime/                # runtime generators and artifact execution
+└── stubs/                 # explicit test/development stubs
 
 tests/
 ├── integration/
@@ -255,12 +258,13 @@ tests/
 ├── test_orchestrator.py
 ├── test_policy.py
 ├── test_rag.py
+├── test_rag_production.py
 ├── test_pid_pipeline.py
 ├── test_artifact_validation.py
 └── ...
 ```
 
-> **Note:** the `rag/` subtree above is the last version I could confirm and is flagged as possibly stale — it now includes production Ollama/Qdrant integration per the updates above, which likely means new files (embeddings, Qdrant client, etc.) that aren't reflected in this listing. Paste the output of `find app/rag -type f` (or similar) and I'll sync it exactly, without guessing at filenames.
+`app/rag/` now includes the production retrieval/embedding stack and should be treated as part of the implemented runtime rather than an unverified subtree.
 
 For generated code, tool calls resolve to a validated contract of this shape:
 
@@ -276,12 +280,18 @@ For generated code, tool calls resolve to a validated contract of this shape:
 
 ## Configuration
 
-This only documents settings that currently exist. The table will grow as production wiring lands.
+This documents the settings currently used by the implemented runtime.
 
 | Variable | Required | Default | Description |
 |---|---:|---|---|
-| `INFERENCE_MODE` | Yes | — | `local` runs inference through Ollama with no cloud fallback; any external mode is an explicit, separately-configured development/testing path |
-| `MAX_REPAIR_ATTEMPTS` | No | `3` | Global bound on how many times the orchestrator will attempt bounded repair before surrendering to an `UNVERIFIED`/`INVALID` result |
+| `INFERENCE_MODE` | Yes | — | `local` runs inference through Ollama with no cloud fallback; any external mode is explicitly configured for development/testing |
+| `MODEL_INVENTORY_JSON` | No | environment-specific | JSON model registry used for task capability, hardware-profile, mode, and memory-aware routing |
+| `EMBEDDING_BACKEND` | No | `ollama` | Local embedding backend used by the production RAG path |
+| `EMBEDDING_MODEL` | No | — | Local embedding model; current validated model is `embeddinggemma:latest` |
+| `EMBEDDING_VECTOR_SIZE` | No | — | Qdrant vector dimension; current validated collection uses `768` |
+| `MAX_REPAIR_ATTEMPTS` | No | `3` | Global bound on orchestrator repair attempts before an `UNVERIFIED`/`INVALID` outcome |
+| `MODEL_GENERATION_TIMEOUT_S` | No | environment-specific | Maximum generation time for a model call |
+| `HARD_TASK_TIMEOUT_S` | No | environment-specific | Overall bounded task execution timeout |
 
 ---
 
@@ -290,9 +300,9 @@ This only documents settings that currently exist. The table will grow as produc
 | Phase | Focus |
 |---|---|
 | **1 — Control plane** *(implemented)* | Provider abstraction, model routing, resource management, bounded orchestration, policy enforcement, verification, provenance |
-| **2 — Runtime integration** *(current)* | Real local inference, service composition, RAG ingestion/retrieval, grounded verification, artifact workflows, tool/runtime integration, sovereignty telemetry |
-| **3 — Multimodal** *(in progress)* | OCR, image transport, production multimodal inference, P&ID execution integration, structured graph extraction, multimodal verification |
-| **4 — Hardening** | Security attack tests, network-egress validation, resource exhaustion tests, prompt-injection tests, artifact tamper validation, frontend/API contract validation, and end-to-end demo workflows |
+| **2 — Runtime integration** *(implemented)* | Real local inference, service composition, RAG ingestion/retrieval, grounded verification, artifact generation/validation, tool/runtime integration, sovereignty telemetry |
+| **3 — Multimodal** *(partially implemented)* | OCR pipeline, P&ID graph integration, image-capability-aware routing, local vision-model transport and full multimodal execution |
+| **4 — Hardening** *(active)* | Security attack tests, egress validation, resource-exhaustion tests, prompt-injection tests, artifact tamper validation, frontend/API contract validation, and complete end-to-end demo acceptance |
 
 ---
 
@@ -312,8 +322,8 @@ Prefer deterministic validation over LLM-based validation wherever you can, and 
 **Local setup:**
 
 ```bash
-pytest -q
-python3 -m compileall -q app tests
+uv run pytest -q
+uv run python -m compileall app tests
 ```
 
 ---
@@ -326,4 +336,4 @@ License: TBD.
 
 ## Next step
 
-Clone the repo, run `pytest -q`, and read through `app/agent/orchestrator.py` and `app/policy/validator.py`. That's the fastest way to see the propose, policy, execute, verify loop in actual code instead of in diagrams.
+Clone the repo, start the local services, run the test suite, and then exercise the real-mode workflow through the API. The current representative path is local Ollama inference with Qwen3 14B, document-scoped Qdrant retrieval, grounded citation verification, and artifact validation under the sovereignty monitor. Full end-to-end demo acceptance, multimodal runtime dependencies, frontend/API integration, and final hardening remain in progress.
