@@ -4,7 +4,7 @@
 
 Built for **Smart India Hackathon 2026 · Problem Statement 26117**.
 
-Status: Phase 1 (control plane) implemented and tested. Phases 2–4 are in progress. See [Current development status](#current-development-status).
+Status: Core control plane, real-mode composition, RAG ingestion/retrieval, grounded answer verification, P&ID integration, and artifact validation are implemented and tested. End-to-end runtime integration and remaining multimodal/tooling work are in progress. See [Current development status](#current-development-status).
 
 [Why Indigent](#why-indigent) · [How it works](#core-principles) · [Quick start](#quick-start) · [Architecture](#architecture) · [Status](#current-development-status) · [Roadmap](#roadmap) · [Contributing](#contributing)
 
@@ -26,7 +26,7 @@ INFERENCE_MODE=local
 
 Local mode has no silent fallback to a cloud provider. Groq is available as a sanctioned dev/testing option, kept separate from the default path. The shipped and demo configuration runs on local Ollama.
 
-The platform also shows sovereignty as a live runtime state, not just a README claim:
+The platform exposes sovereignty as a live runtime state, including the active inference mode, provider, external-call counters, and network policy:
 
 ```text
 AIR-GAPPED
@@ -128,10 +128,10 @@ Other security properties: fail-closed validation, workspace confinement, path-t
 
 ## Quick start
 
-The repo currently ships the Joy control-plane implementation and its test suite. There's no end-to-end application yet (see [status](#current-development-status) below). You can install it and run the control plane itself:
+The repo ships the Joy control-plane implementation with real-mode composition, local RAG, grounded verification, artifact validation, and integration tests. Full product/UI workflows are still being completed.
 
 ```bash
-# Install dependencies from the project configuration
+# ⚠ placeholder — replace with the actual setup command from docs/demo-runbook.md
 pip install -r requirements.txt   # or the project's declared dependency file
 
 # Run the full test suite
@@ -141,7 +141,7 @@ pytest -q
 python3 -m compileall -q app tests
 ```
 
-Expected result: **101 tests passing**, with no external network access required.
+Expected result: **347 tests passing, 14 skipped, 3 deselected** in the non-Docker suite. Live integration tests additionally exercise local Ollama and Qdrant when configured.
 
 Local inference runs through [Ollama](https://ollama.com). Production config sets `INFERENCE_MODE=local`. Groq is only enabled deliberately, for development or testing.
 
@@ -155,7 +155,7 @@ Local inference runs through [Ollama](https://ollama.com). Production config set
 | **Resource management** | Model residency tracking, active-request tracking, memory requirement config, bounded concurrency, load/unload hooks — no fabricated GPU telemetry |
 | **Bounded orchestration** | Explicit execution states, dynamic planning hooks, task classification, retrieval integration, tool boundaries, verification, bounded repair, human approval, hard task/model/tool timeouts |
 | **Policy validation** | Task/tool authorization, allowlists, argument validation, unexpected-field rejection, path-traversal and absolute-path rejection, workspace boundary enforcement, file type/size limits, fail-closed behavior |
-| **RAG & evidence** | Document models, source hashing, text-extraction and OCR interfaces, deterministic chunking, stable chunk IDs, source offsets, evidence metadata, in-memory offline vector store, cosine similarity + lightweight reranking, provenance preservation |
+| **RAG & evidence** | Document ingestion, source hashing, deterministic chunking, stable chunk IDs, Ollama embeddings, Qdrant vector storage, scoped retrieval, cosine similarity + reranking, evidence metadata, provenance preservation, and citation verification |
 | **Citation verification** | Claim-vs-evidence checking, structured output validation, confidence + explanation recording, provenance preservation, triggers bounded repair on failure |
 | **Coding agent** | Generate → policy-validate → create → execute → test → deterministic verification → bounded repair, using exit codes/test results/runtime errors rather than asking an LLM if it worked |
 | **Multimodal / P&ID** | Structured `PIDGraph` representation (nodes, edges, bounding boxes, confidence, overlay reference, narrative), graph validation for stable IDs, unique nodes, valid edges, confidence bounds |
@@ -175,27 +175,30 @@ There is no unbounded self-correction loop anywhere in the system.
 
 ## Current development status
 
-The repo contains the core Joy control-plane implementation and its tests. This is control-plane-first, not a wired-up end-to-end product yet.
+The repo contains the Joy control-plane implementation, real-mode service composition, production RAG path, grounded answer verification, P&ID integration, artifact validation, and integration tests. Full product workflows remain under active development.
 
 **Implemented and tested**
-- Inference provider abstraction, Ollama provider, Groq dev provider
-- Model registry and router, resource manager
-- Bounded orchestrator, tool policy validation
-- RAG/evidence control layer, citation verification
-- P&ID graph pipeline
-- Coding verification/repair loop
-- Artifact semantic validation and repair/revalidation
-- Control-plane integration audit
+- Inference provider abstraction, Ollama provider, Groq dev/test provider
+- Model registry and hardware-aware routing
+- Resource manager and bounded concurrency
+- Bounded orchestrator with verification and repair
+- Deterministic policy validation and tool authorization
+- Production Ollama embeddings + Qdrant RAG ingestion/retrieval
+- Evidence provenance and citation verification
+- Coding verification and bounded repair
+- P&ID graph pipeline integration
+- Artifact semantic validation and provenance checks
+- Real-mode application composition and sovereignty telemetry
+- Control-plane integration and failure/security test coverage
 
 **In progress**
-- Production model inventory/configuration
-- Full real-mode application wiring
-- Provider → Resource Manager and sovereignty telemetry integration
-- Production embedding / vector-store and OCR adapters
-- Real multimodal provider transport
-- Production artifact generation integration
-- Full end-to-end execution paths
-- Security/attack testing and demo hardening
+- Remaining physical tool implementations and runtime integrations
+- OCR/document-processing integration
+- Full multimodal provider transport
+- Complete artifact-generation workflows
+- Frontend/API contract integration
+- Remaining security/attack testing
+- End-to-end demo hardening and acceptance matrix completion
 
 We intentionally **fail closed** when production dependencies or adapters aren't configured, instead of silently substituting stubs or external services.
 
@@ -207,7 +210,7 @@ We intentionally **fail closed** when production dependencies or adapters aren't
 pytest -q
 ```
 
-The current focused test baseline is **101 passed**, covering provider behavior, model routing, resource management, orchestration, policy enforcement, RAG, citation verification, coding verification, P&ID parsing, artifact validation/repair, and application-wiring behavior. The suite runs without external network access.
+The current non-Docker test baseline is **347 passed, 14 skipped, 3 deselected**. Step 10 currently reports **22 passed, 3 skipped**. Coverage includes provider behavior, routing, resource management, orchestration, policy enforcement, RAG ingestion/retrieval, citation verification, coding verification, P&ID processing, artifact validation, application wiring, and failure/security behaviors.
 
 ---
 
@@ -234,7 +237,7 @@ app/
 │   ├── http.py
 │   ├── ollama.py
 │   └── types.py
-├── rag/
+├── rag/                   # ⚠ unverified — needs sync against the actual app/rag/ tree, see note below
 │   ├── chunking.py
 │   ├── extractors.py
 │   ├── interfaces.py
@@ -256,6 +259,8 @@ tests/
 ├── test_artifact_validation.py
 └── ...
 ```
+
+> **Note:** the `rag/` subtree above is the last version I could confirm and is flagged as possibly stale — it now includes production Ollama/Qdrant integration per the updates above, which likely means new files (embeddings, Qdrant client, etc.) that aren't reflected in this listing. Paste the output of `find app/rag -type f` (or similar) and I'll sync it exactly, without guessing at filenames.
 
 For generated code, tool calls resolve to a validated contract of this shape:
 
@@ -284,10 +289,10 @@ This only documents settings that currently exist. The table will grow as produc
 
 | Phase | Focus |
 |---|---|
-| **1 — Control plane** *(current)* | Provider abstraction, model routing, resource management, orchestration, policy enforcement, verification, provenance |
-| **2 — Runtime integration** | Real model inventory, real local inference, task/runtime wiring, coding execution, RAG ingestion/retrieval, artifact generation, sovereignty telemetry |
-| **3 — Multimodal** | OCR, image transport, P&ID inference, structured graph extraction, multimodal verification |
-| **4 — Hardening** | Security attack tests, network-egress validation, resource exhaustion tests, prompt-injection tests, artifact tamper validation, end-to-end demo workflows |
+| **1 — Control plane** *(implemented)* | Provider abstraction, model routing, resource management, bounded orchestration, policy enforcement, verification, provenance |
+| **2 — Runtime integration** *(current)* | Real local inference, service composition, RAG ingestion/retrieval, grounded verification, artifact workflows, tool/runtime integration, sovereignty telemetry |
+| **3 — Multimodal** *(in progress)* | OCR, image transport, production multimodal inference, P&ID execution integration, structured graph extraction, multimodal verification |
+| **4 — Hardening** | Security attack tests, network-egress validation, resource exhaustion tests, prompt-injection tests, artifact tamper validation, frontend/API contract validation, and end-to-end demo workflows |
 
 ---
 
@@ -315,4 +320,10 @@ python3 -m compileall -q app tests
 
 ## License
 
-License TBD. Will be added with the release configuration.
+License: TBD.
+
+---
+
+## Next step
+
+Clone the repo, run `pytest -q`, and read through `app/agent/orchestrator.py` and `app/policy/validator.py`. That's the fastest way to see the propose, policy, execute, verify loop in actual code instead of in diagrams.

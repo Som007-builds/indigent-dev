@@ -1,0 +1,15 @@
+{"level": "INFO", "message": "startup mode=local profile=mac_silicon"}
+{"level": "INFO", "message": "HTTP Request: GET http://testserver/healthz \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "message": "HTTP Request: GET http://testserver/readyz \"HTTP/1.1 503 Service Unavailable\""}
+{"level": "INFO", "message": "HTTP Request: GET http://testserver/api/models \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "message": "HTTP Request: GET http://testserver/api/monitoring/sovereignty \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "message": "HTTP Request: GET http://testserver/api/tasks/eb7bcda8-c48c-446f-b98b-f7ff692f704b \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "message": "HTTP Request: GET http://testserver/api/tasks/eb7bcda8-c48c-446f-b98b-f7ff692f704b/timeline \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "message": "HTTP Request: POST http://testserver/api/tasks/eb7bcda8-c48c-446f-b98b-f7ff692f704b/approve \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "message": "HTTP Request: POST http://testserver/api/chat \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "message": "HTTP Request: GET http://testserver/api/tasks/eb7bcda8-c48c-446f-b98b-f7ff692f704b \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "message": "HTTP Request: POST http://testserver/api/files/upload \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "message": "HTTP Request: POST http://testserver/api/knowledge/upload \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "message": "HTTP Request: GET http://testserver/api/artifacts/34b611f2-7b7e-401c-882a-3ffa941bdd1d \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "message": "HTTP Request: POST http://testserver/api/pid/analyze \"HTTP/1.1 415 Unsupported Media Type\""}
+{"level": "INFO", "message": "HTTP Request: GET http://testserver/api/monitoring/sovereignty \"HTTP/1.1 200 OK\""}

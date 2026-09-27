@@ -247,22 +247,25 @@ class BoundedOrchestrator:
         # after approval gets a fresh task_timeout_s window.
         awaiting_approval = False
         try:
+            print("RUN TASK_TIMEOUT_S:", self.task_timeout_s)
             async with asyncio.timeout(self.task_timeout_s) as budget:
-                async for event in self._execute(task, ctx, file_ids, services):
+                async for event in self._execute(task, ctx, file_ids, services, budget):
                     if event.type == "approval_requested":
-                        budget.reschedule(monotonic() + self.approval_timeout_s + self.task_timeout_s)
+                        if not budget.expired():
+                            budget.reschedule(monotonic() + self.approval_timeout_s + self.task_timeout_s)
                         awaiting_approval = True
                     elif (
                         awaiting_approval
                         and event.type == "state_changed"
                         and event.data.get("state") != "APPROVAL"
                     ):
-                        budget.reschedule(monotonic() + self.task_timeout_s)
+                        if not budget.expired():
+                            budget.reschedule(monotonic() + self.task_timeout_s)
                         awaiting_approval = False
                     terminal_emitted = event.type in {"completed", "failed"}
                     yield event
-        except TimeoutError:
-            if not terminal_emitted:
+        except (TimeoutError, asyncio.CancelledError):
+            if budget.expired() and not terminal_emitted:
                 task.current_state = "FAILED"
                 yield self._failed("TASK_TIMEOUT", "Task exceeded its time limit")
             else:
@@ -275,7 +278,12 @@ class BoundedOrchestrator:
             yield self._failed("ORCHESTRATOR_ERROR", f"{type(error).__name__}: {error}")
 
     async def _execute(
-        self, task: TaskSnapshot, ctx: TaskContext, file_ids: list[str], services: object | None = None
+        self,
+        task: TaskSnapshot,
+        ctx: TaskContext,
+        file_ids: list[str],
+        services: object | None = None,
+        budget: asyncio.Timeout | None = None,
     ) -> AsyncIterator[TaskEvent]:
         yield self._state(task)
         task.transition("CLASSIFY")
@@ -348,6 +356,8 @@ class BoundedOrchestrator:
                         execute = executor.execute(ctx, decision) if services is not None and hasattr(services, "runtime") else executor.execute(decision)
                         result = await asyncio.wait_for(execute, timeout=self.tool_timeout_s)
                     except TimeoutError:
+                        if budget is not None and budget.expired():
+                            raise
                         task.current_state = "FAILED"
                         yield self._failed("TOOL_TIMEOUT", "Tool exceeded its time limit")
                         return
@@ -472,6 +482,8 @@ class BoundedOrchestrator:
                 execute = executor.execute(ctx, decision) if services is not None and hasattr(services, "runtime") else executor.execute(decision)
                 result = await asyncio.wait_for(execute, timeout=self.tool_timeout_s)
             except TimeoutError:
+                if budget is not None and budget.expired():
+                    raise
                 task.current_state = "FAILED"
                 yield self._failed("TOOL_TIMEOUT", "Tool exceeded its time limit")
                 return

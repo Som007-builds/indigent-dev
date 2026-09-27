@@ -1,0 +1,15 @@
+{"level": "INFO", "message": "startup mode=local profile=mac_silicon"}
+{"level": "INFO", "message": "HTTP Request: GET http://testserver/healthz \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "message": "HTTP Request: GET http://testserver/readyz \"HTTP/1.1 503 Service Unavailable\""}
+{"level": "INFO", "message": "HTTP Request: GET http://testserver/api/models \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "message": "HTTP Request: GET http://testserver/api/monitoring/sovereignty \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "message": "HTTP Request: GET http://testserver/api/tasks/ca9d5396-a08d-42ce-885c-49970622eee4 \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "message": "HTTP Request: GET http://testserver/api/tasks/ca9d5396-a08d-42ce-885c-49970622eee4/timeline \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "message": "HTTP Request: POST http://testserver/api/tasks/ca9d5396-a08d-42ce-885c-49970622eee4/approve \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "message": "HTTP Request: POST http://testserver/api/chat \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "message": "HTTP Request: GET http://testserver/api/tasks/ca9d5396-a08d-42ce-885c-49970622eee4 \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "message": "HTTP Request: POST http://testserver/api/files/upload \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "message": "HTTP Request: POST http://testserver/api/knowledge/upload \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "message": "HTTP Request: GET http://testserver/api/artifacts/af0f6064-c572-44a4-8871-dafc29768e23 \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "message": "HTTP Request: POST http://testserver/api/pid/analyze \"HTTP/1.1 200 OK\""}
+{"level": "INFO", "message": "HTTP Request: GET http://testserver/api/monitoring/sovereignty \"HTTP/1.1 200 OK\""}
