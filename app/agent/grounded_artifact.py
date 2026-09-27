@@ -67,6 +67,7 @@ class GroundedAnswerArtifactHandler:
         findings: list[str] = []
         citation_ids: list[str] = []
         spec_evidence: dict[str, dict[str, Any]] = {}
+        calculations: list[dict[str, Any]] = []
         for claim in claims:
             associated = [evidence_by_id.get(chunk_id) for chunk_id in claim.evidence_chunk_ids]
             if not associated or any(item is None for item in associated):
@@ -96,6 +97,17 @@ class GroundedAnswerArtifactHandler:
             verification_provenance.extend(result.verification for result in results)
             evidence_provenance.extend(result.evidence for result in results)
 
+            # Extract calculations from the claim if present
+            if hasattr(claim, 'calculations') and claim.calculations:
+                for calc in claim.calculations:
+                    if isinstance(calc, dict):
+                        calculations.append({
+                            "name": calc.get("name", ""),
+                            "formula": calc.get("formula", ""),
+                            "inputs": calc.get("inputs", {}),
+                            "result": calc.get("result", ""),
+                        })
+
         outputs = safe_join(context.workspace, "outputs")
         outputs.mkdir(parents=True, exist_ok=True)
         path = safe_join(outputs, "grounded-answer.docx")
@@ -121,7 +133,7 @@ class GroundedAnswerArtifactHandler:
                 {"heading": "Grounded Analysis", "paragraphs": [answer["answer"]]},
             ],
             "evidence": sorted(spec_evidence.values(), key=lambda item: item["chunk_id"]),
-            "calculations": [],
+            "calculations": calculations,
             "assumptions": ["Only citation-verified claims are presented as findings."],
             "recommendation": answer["answer"],
         }
@@ -143,11 +155,11 @@ class GroundedAnswerArtifactHandler:
                         {"heading": "Citation Verification", "paragraphs": [f"{item['claim_id']} / {item['chunk_id']}: verified" for item in sorted(({"claim_id": result.claim_id, "chunk_id": result.evidence.chunk_id} for result in citation_results), key=lambda item: (item["claim_id"], item["chunk_id"]))]},
                         {"heading": "Grounded Analysis", "paragraphs": [answer["answer"]]},
                     ],
-                    "evidence": sorted(spec_evidence.values(), key=lambda item: item["chunk_id"]),
-                    "calculations": [],
-                    "assumptions": ["Only citation-verified claims are presented as findings."],
-                    "recommendation": answer["answer"],
-                },
+"evidence": sorted(spec_evidence.values(), key=lambda item: item["chunk_id"]),
+            "calculations": calculations,
+            "assumptions": ["Only citation-verified claims are presented as findings."],
+            "recommendation": answer["answer"],
+        },
             },
         )
         self._contexts[task.task_id] = ArtifactValidationContext(

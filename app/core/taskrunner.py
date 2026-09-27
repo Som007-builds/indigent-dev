@@ -73,7 +73,7 @@ class TaskRunner:
         log_token = log_task_id.set(task_id)
         ctx = TaskContext(
             task_id=task_id,
-            task_type=None,
+            task_type="inspection",
             workspace=workspace,
             inference_mode=self.settings.inference_mode,
         )

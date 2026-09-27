@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import AsyncIterator, Protocol
+
+import httpx
 
 from app.providers import ModelInfo
 
@@ -64,6 +67,7 @@ class ResourceManager:
         self._residency: dict[str, Residency] = {}
         self._reserved_memory_mb = 0
         self._lock = asyncio.Lock()
+        self._sync_lock = threading.Lock()
 
     def requirements(self, model: ModelInfo) -> ResourceRequirements:
         memory = max(0, model.memory_estimate_mb)
@@ -101,6 +105,42 @@ class ResourceManager:
 
     def resident_models(self) -> list[str]:
         return [model_id for model_id, state in self._residency.items() if state.loaded]
+
+    def sync_ollama_residency(self, ollama_base_url: str, timeout: float = 5.0) -> None:
+        """Sync internal residency with Ollama's /api/ps endpoint.
+
+        Queries Ollama's /api/ps to find currently loaded models and updates
+        internal residency tracking to match reality. This handles cases where
+        models were loaded outside the ResourceManager's control (e.g., via
+        `ollama pull` or direct API calls).
+        """
+        try:
+            with httpx.Client(base_url=ollama_base_url.rstrip("/"), timeout=timeout, trust_env=False) as client:
+                response = client.get("/api/ps")
+                response.raise_for_status()
+                data = response.json()
+                models = data.get("models", [])
+                resident_ids = {entry.get("name") or entry.get("model") for entry in models}
+        except Exception:
+            # Fail closed: if we can't query Ollama, don't update residency
+            return
+
+        with self._sync_lock:
+            # Update existing entries
+            for model_id, resident in self._residency.items():
+                is_resident = model_id in resident_ids
+                if resident.loaded != is_resident:
+                    if is_resident:
+                        mem_mb = resident.memory_mb
+                        self._residency[model_id] = Residency(
+                            model_id, True, resident.active_requests, mem_mb
+                        )
+                    else:
+                        self._residency[model_id] = Residency(model_id, False, 0, 0)
+            # Add new entries for models resident in Ollama but not in our tracking
+            for resident_id in resident_ids:
+                if resident_id not in self._residency:
+                    self._residency[resident_id] = Residency(resident_id, True, 0, 0)
 
     async def load(self, model: ModelInfo) -> None:
         async with self._lock:

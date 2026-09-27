@@ -150,10 +150,17 @@ class QdrantVectorStore:
             actual_size = info.config.params.vectors.size
             if actual_size != self.vector_size:
                 raise ValueError("configured Qdrant vector size does not match collection")
-            return
-        self.client.create_collection(
+        else:
+            self.client.create_collection(
+                collection_name=self.collection,
+                vectors_config={"size": self.vector_size, "distance": "Cosine"},
+            )
+        # Ensure document_id payload index exists for filter queries.
+        # Idempotent: Qdrant returns 409 if index already exists.
+        self.client.create_payload_index(
             collection_name=self.collection,
-            vectors_config={"size": self.vector_size, "distance": "Cosine"},
+            field_name="document_id",
+            field_schema="keyword",
         )
 
     def upsert(self, chunks: Sequence[Chunk], vectors: Sequence[Sequence[float]]) -> None:
@@ -292,6 +299,19 @@ class _QdrantRestClient:
             params={"wait": "true"},
             json={"filter": {"must": [{"key": "document_id", "match": {"value": document_id}}]}},
         )
+        response.raise_for_status()
+
+    def create_payload_index(
+        self, collection_name: str, field_name: str, field_schema: str = "keyword"
+    ) -> None:
+        collection_name = quote(collection_name, safe="")
+        response = self._client.put(
+            f"/collections/{collection_name}/index",
+            json={"field_name": field_name, "field_schema": field_schema},
+        )
+        if response.status_code == 409:
+            # Index already exists; Qdrant returns 409 Conflict
+            return
         response.raise_for_status()
 
     def query_points(self, **kwargs: Any) -> Any:
