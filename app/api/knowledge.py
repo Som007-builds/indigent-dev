@@ -22,6 +22,11 @@ def router(settings: Settings, repo: Repository, audit: AuditLoggerImpl, rag: ob
             await repo.update_ingest(record.file_id, "failed", str(exc))
             await audit.emit("INGEST_FAILED", "knowledge", "ingest", "error", details={"file_id": record.file_id})
 
+    @api.get("")
+    async def list_knowledge():
+        records = await repo.list_files(kind="knowledge")
+        return {"files": [{"file_id": item["file_id"], "name": item["original_name"], "size": item["size_bytes"], "sha256": item["sha256"], "mime": item["mime"], "ingest_status": item.get("ingest_status", "ready"), "ingest_error": item.get("ingest_error"), "created_at": item.get("created_at")} for item in records]}
+
     @api.post("/upload")
     async def upload(background: BackgroundTasks, file: list[UploadFile] = File(...)):  # noqa: B008
         records = [await save_upload(item, kind="knowledge", settings=settings, repo=repo, audit=audit) for item in file]

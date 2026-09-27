@@ -23,6 +23,7 @@ from app.stubs.models_status import StubModelsStatus
 
 def create_app(settings: Settings | None = None, models_status: object | None = None) -> FastAPI:
     settings = settings or get_settings()
+    models_status = models_status or StubModelsStatus(settings)
     configure_logging(settings.data_dir, settings.log_level)
     logging.getLogger(__name__).info(
         "startup mode=%s profile=%s", settings.inference_mode, settings.local_hardware_profile
@@ -148,7 +149,7 @@ def create_app(settings: Settings | None = None, models_status: object | None = 
     app.include_router(tasks_router(runner, bus, repository))
     app.include_router(files_router(settings, repository, audit))
     app.include_router(knowledge_router(settings, repository, audit, rag))
-    app.include_router(models_router(models_status or getattr(services, "models_status", StubModelsStatus())))
+    app.include_router(models_router(models_status))
     app.include_router(monitoring_router(services.sovereignty))
     app.include_router(pid_router(settings, repository, audit, pid, services.artifacts))
     app.include_router(health_router(settings, database))
