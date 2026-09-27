@@ -50,8 +50,11 @@ class ModelRouter:
             provider = self.providers.get(model.provider)
             if provider is None or provider.is_local() != (mode == "local"):
                 continue
-            if requires_images and not _accepts_images(provider):
-                continue
+            if requires_images:
+                if "image" not in model.modalities:
+                    continue
+                if not _accepts_images(provider):
+                    continue
             health = provider.health_check()
             if health.available:
                 return model, provider

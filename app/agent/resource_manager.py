@@ -30,6 +30,7 @@ class Residency:
     model_id: str
     loaded: bool
     active_requests: int = 0
+    memory_mb: int = 0
 
 
 @dataclass(frozen=True)
@@ -110,8 +111,9 @@ class ResourceManager:
                 return
             if self._load_hook is not None:
                 self._load_hook(model)
-            self._reserved_memory_mb += self.requirements(model).memory_mb
-            self._residency[model.model_id] = Residency(model.model_id, True, state.active_requests)
+            mem = self.requirements(model).memory_mb
+            self._reserved_memory_mb += mem
+            self._residency[model.model_id] = Residency(model.model_id, True, state.active_requests, mem)
 
     async def unload(self, model: ModelInfo) -> None:
         async with self._lock:
@@ -120,10 +122,8 @@ class ResourceManager:
                 return
             if self._unload_hook is not None:
                 self._unload_hook(model)
-            self._reserved_memory_mb = max(
-                0, self._reserved_memory_mb - self.requirements(model).memory_mb
-            )
-            self._residency[model.model_id] = Residency(model.model_id, False)
+            self._reserved_memory_mb = max(0, self._reserved_memory_mb - state.memory_mb)
+            self._residency[model.model_id] = Residency(model.model_id, False, 0, 0)
 
     @asynccontextmanager
     async def acquire(self, model: ModelInfo) -> AsyncIterator[None]:
@@ -136,13 +136,30 @@ class ResourceManager:
             async with self._lock:
                 state = self.residency(model.model_id)
                 self._residency[model.model_id] = Residency(
-                    model.model_id, True, state.active_requests + 1
+                    model.model_id, True, state.active_requests + 1, state.memory_mb
                 )
             yield
         finally:
             async with self._lock:
                 state = self.residency(model.model_id)
                 self._residency[model.model_id] = Residency(
-                    model.model_id, state.loaded, max(0, state.active_requests - 1)
+                    model.model_id, state.loaded, max(0, state.active_requests - 1), state.memory_mb
                 )
             self._semaphore.release()
+
+    async def unload_idle(self) -> None:
+        """Unload all models with no active requests.
+
+        Intended to be called at task boundaries to release memory held by
+        models that are no longer needed. Does not unload models with
+        active_requests > 0.
+        """
+        async with self._lock:
+            for model_id, state in list(self._residency.items()):
+                if state.loaded and state.active_requests == 0:
+                    if self._unload_hook is not None:
+                        from types import SimpleNamespace
+                        minimal_model = SimpleNamespace(model_id=model_id)
+                        self._unload_hook(minimal_model)
+                    self._reserved_memory_mb = max(0, self._reserved_memory_mb - state.memory_mb)
+                    self._residency[model_id] = Residency(model_id, False, 0, 0)

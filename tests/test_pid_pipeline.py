@@ -59,7 +59,12 @@ class Sovereignty:
 
 def pipeline(response, *, mode: str = "local"):
     provider = Provider(response)
-    model = ModelInfo("vlm", "vlm", "ollama", "local", frozenset({"pid_analysis"}), frozenset({"mac_silicon"}))
+    model = ModelInfo(
+        "vlm", "vlm", "ollama", "local", 
+        frozenset({"pid_analysis"}), 
+        frozenset({"mac_silicon"}),
+        modalities=frozenset({"text", "image"})
+    )
     resources = ResourceManager()
     router = ModelRouter(Settings(inference_mode=mode), ModelRegistry([model]), {"ollama": provider}, resources)  # type: ignore[arg-type]
     sovereignty = Sovereignty()

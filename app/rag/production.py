@@ -5,7 +5,7 @@ import math
 import uuid
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 from urllib.parse import quote, urlparse
 
 import httpx
@@ -13,6 +13,7 @@ import httpx
 from .chunking import chunk_document
 from .interfaces import Embedder, TextExtractor, VectorStore
 from .models import Chunk, Document
+from .ocr import MockOCRAdapter, OCRAdapter
 
 
 class LocalEmbeddingError(RuntimeError):
@@ -409,7 +410,10 @@ class ProductionRagIngestor:
 
 
 class LocalPDFTextExtractor:
-    """Local PDF text extraction; scanned pages fail explicitly until OCR is available."""
+    """Local PDF text extraction with OCR fallback for scanned pages."""
+
+    def __init__(self, *, ocr_adapter: Optional[object] = None, use_mock_ocr: bool = False) -> None:
+        self.ocr_adapter = ocr_adapter or (MockOCRAdapter() if use_mock_ocr else OCRAdapter())
 
     def extract(self, path: Path, mime: str) -> Document:
         if mime != "application/pdf":
@@ -420,23 +424,42 @@ class LocalPDFTextExtractor:
             raise RuntimeError("PyMuPDF is required for local PDF extraction") from error
         from .chunking import source_sha256
 
+        # First, try to extract text layer
         with fitz.open(path) as pdf:
             pages = [page.get_text("text") for page in pdf]
-        if not any(page.strip() for page in pages):
-            raise RuntimeError("PDF contains no extractable text; local OCR is unavailable")
-        page_starts: list[int] = []
-        parts: list[str] = []
-        offset = 0
-        for page_text in pages:
-            page_starts.append(offset)
-            parts.append(page_text)
-            offset += len(page_text) + 1
-        text = "\n".join(parts)
-        return Document(
-            document_id=path.stem,
-            source_path=str(path),
-            source_hash=source_sha256(path),
-            text=text,
-            mime=mime,
-            metadata={"page_count": len(pages), "page_starts": page_starts},
-        )
+        if any(page.strip() for page in pages):
+            # Text layer exists, use it
+            page_starts: list[int] = []
+            parts: list[str] = []
+            offset = 0
+            for page_text in pages:
+                page_starts.append(offset)
+                parts.append(page_text)
+                offset += len(page_text) + 1
+            text = "\n".join(parts)
+            return Document(
+                document_id=path.stem,
+                source_path=str(path),
+                source_hash=source_sha256(path),
+                text=text,
+                mime=mime,
+                metadata={"page_count": len(pages), "page_starts": page_starts, "extraction_method": "text_layer"},
+            )
+
+        # No text layer - try OCR if available
+        if hasattr(self.ocr_adapter, "available") and self.ocr_adapter.available:
+            ocr_doc = self.ocr_adapter.extract_from_pdf(path)
+            # Merge OCR metadata with extraction method
+            meta = dict(ocr_doc.metadata or {})
+            meta["extraction_method"] = "ocr"
+            return Document(
+                document_id=ocr_doc.document_id,
+                source_path=ocr_doc.source_path,
+                source_hash=ocr_doc.source_hash,
+                text=ocr_doc.text,
+                mime=ocr_doc.mime,
+                metadata=meta,
+            )
+
+        # No text layer and no OCR available
+        raise RuntimeError("PDF contains no extractable text; local OCR is unavailable (tesseract not installed)")

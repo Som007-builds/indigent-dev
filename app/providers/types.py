@@ -54,3 +54,4 @@ class ModelInfo:
     hardware_profiles: frozenset[Literal["mac_silicon", "rtx_3050a_4gb"]] = frozenset()
     memory_estimate_mb: int = 0
     available: bool = True
+    modalities: frozenset[Literal["text", "image"]] = frozenset(["text"])
