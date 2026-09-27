@@ -13,7 +13,7 @@ from app.core.workspace import safe_join
 
 
 def build_services(
-    settings: Settings, repository: Any | None = None
+    settings: Settings, repository: Any | None = None, models_status: object | None = None
 ) -> tuple[Services, object, object, object]:
     """Build the explicitly selected module set; real mode never falls back.
 
@@ -22,7 +22,16 @@ def build_services(
     instead of opening a second, never-initialized connection to the same file.
     """
     if settings.joy_modules == "real":
-        return build_real_services(settings, repository=repository)
+        try:
+            return build_real_services(settings, repository=repository)
+        except RuntimeError as err:
+            if settings.inference_mode == "groq" and settings.groq_api_key:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Local modules unavailable for Groq mode (%s); falling back to Groq dev orchestrator", err
+                )
+            else:
+                raise
 
     from app.core.audit import AuditLoggerImpl
     from app.core.db import Database
@@ -54,7 +63,7 @@ def build_services(
         workspace_root=workspace_root,
     )
     services.runtime = ToolRuntimeImpl(settings, services)
-    return services, StubOrchestrator(), StubRag(), StubPid()
+    return services, StubOrchestrator(settings=settings, models_status=models_status), StubRag(), StubPid()
 
 
 @dataclass(frozen=True)

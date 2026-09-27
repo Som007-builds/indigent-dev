@@ -31,7 +31,10 @@ class JsonFormatter(logging.Formatter):
             payload["request_id"] = request_id.get()
         if task_id.get():
             payload["task_id"] = task_id.get()
+        if record.exc_info:
+            payload["exception"] = self.formatException(record.exc_info)
         return json.dumps(payload, default=str)
+
 
 
 def configure_logging(data_dir: Path, level: str) -> None:

@@ -19,6 +19,15 @@ class ApprovalRequest(BaseModel):
 def router(runner: TaskRunner, bus: EventBus, repo: Repository) -> APIRouter:
     api = APIRouter(prefix="/api/tasks")
 
+    @api.get("")
+    async def list_tasks(limit: int = 50):
+        tasks = await repo.list_tasks(limit)
+        return {"tasks": tasks}
+
+    @api.get("/timeline/all")
+    async def global_timeline():
+        return {"entries": await repo.list_audit()}
+
     @api.get("/{task_id}/stream")
     async def stream(task_id: str, last_event_id: str | None = Header(None)):
         if await repo.get_task(task_id) is None:

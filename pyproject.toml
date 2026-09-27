@@ -12,6 +12,9 @@ dependencies = [
   "pymupdf>=1.24"
 ]
 
+[tool.setuptools.packages.find]
+include = ["app*"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 markers = ["docker: requires Docker", "needs_models: requires Joy's real modules and local models"]
