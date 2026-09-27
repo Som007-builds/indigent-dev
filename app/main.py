@@ -148,7 +148,9 @@ def create_app(settings: Settings | None = None, models_status: object | None = 
     app.include_router(tasks_router(runner, bus, repository))
     app.include_router(files_router(settings, repository, audit))
     app.include_router(knowledge_router(settings, repository, audit, rag))
-    app.include_router(models_router(models_status or getattr(services, "models_status", StubModelsStatus())))
+    app.include_router(
+        models_router(models_status or getattr(services, "models_status", StubModelsStatus(settings)))
+    )
     app.include_router(monitoring_router(services.sovereignty))
     app.include_router(pid_router(settings, repository, audit, pid, services.artifacts))
     app.include_router(health_router(settings, database))

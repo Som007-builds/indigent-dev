@@ -11,7 +11,7 @@
 |---|---|---|---|
 | Step 0 | Skeleton, config, contracts, stubs, logging, errors | ✅ Done | FastAPI factory `/healthz`, JSON logger, secret redaction, `JOY_MODULES` switch. |
 | Step 1 | SQLite persistence (WAL mode), schema migrations, append-only audit logger | ✅ Done | DB triggers enforce append-only audit log; automatic startup task recovery. |
-| Step 2 | Task API, EventBus, TaskRunner, SSE streaming, `/api/chat`, approval pausing | ✅ Done | Background detached execution, gapless SSE replay (`Last-Event-ID`), capacity limits. Fixed TASK_TIMEOUT error code mismatch (was returning ORCHESTRATOR_ERROR on hard timeout) — 2026-09-27. |
+| Step 2 | Task API, EventBus, TaskRunner, SSE streaming, `/api/chat`, approval pausing | ✅ Done | Background detached execution, gapless SSE replay (`Last-Event-ID`), capacity limits. Fixed TASK_TIMEOUT error code mismatch (was returning ORCHESTRATOR_ERROR on hard timeout) — 2026-09-27. Fixed `/api/models` mode-reporting bug (stub hardcoded `local` + wrong `max_concurrency`) — 2026-09-27, verified via 3-way live check (endpoint/header/sovereignty all agree). |
 | Step 3 | Frontend contract reconciliation, OpenAPI export, contract check tool | ✅ Done | `contract-mismatches.md`, `api-contract.md` v1 frozen; `tools/contract_check.py` now exists (async CLI, httpx+ASGITransport, validates all G11 endpoints incl. SSE, error envelopes, X-Inference-Mode header); tests/test_step3.py wraps it. Previously listed as done without the actual script — corrected 2026-09-27. |
 | Step 4 | File uploads, workspace creation, `safe_join` path safety, P&ID file intake | ✅ Done | Chunked streaming uploads, magic bytes check, path traversal prevention, P&ID intake. |
 | Step 5 | Artifact store, SHA-256 integrity re-hashing, DOCX/XLSX report generators | ✅ Done | Manifest registration, tamper detection on download (500 ARTIFACT_CORRUPT), code packager. |
@@ -58,7 +58,7 @@
 - **Multimodal & P&ID ML**: Provisioning a local vision model for image analysis and installing a local OCR engine (e.g., Tesseract) for document OCR extraction.
 - **Groq Mode Integration Test**: Live execution of matrix Row 2 requires an active `GROQ_API_KEY` (skipped by default as Groq is an opt-in non-air-gapped path).
 - **RAM / VRAM Hardware Budgeting**: Running 27B LLM generation alongside Docker Desktop VM on 24 GB host requires explicit model release via keep-alive controls.
-- **Unused dependencies**: `chromadb` and `onnxruntime` present in lockfile but unused anywhere in `app/` — confirmed via grep 2026-09-27. Flag to Joy: leftover from earlier RAG approach, or not yet wired in?
+- ~~Unused dependencies: chromadb/onnxruntime~~ — RESOLVED 2026-09-27 (false premise): neither package is present in requirements.lock or pyproject.toml at all; nothing is or was blocked on this. See Changelog for full correction history.
 
 ---
 
@@ -78,3 +78,6 @@
 - **2026-09-27**: Fixed Windows-incompatible grep call in test_dependency_contract.py (replaced with pathlib/re scanner).
 - **2026-09-27**: Confirmed chromadb/onnxruntime unused in app/ — flagged for Joy, lockfile left untouched pending his input.
 - **2026-09-27**: Documented POST /api/tasks/{id}/approve fire-and-continue behavior in docs/api-contract.md.
+- **2026-09-27**: Fixed /api/models mode-reporting bug — `StubModelsStatus` hardcoded `'local'` regardless of actual mode; also fixed matching `max_concurrency` hardcode (2 vs configured default 1). Added 9-case regression test suite (`tests/integration/test_inference_mode_reporting.py`). Real (non-stub) `ModelsStatus` was already correct — bug was stub-only.
+- **2026-09-27**: Corrected docs/decisions.md — previously claimed chromadb/onnxruntime/numpy/scipy were stale lockfile entries; verified none are present in requirements.lock or pyproject.toml at all. Conclusion (Ollama is sole embedding backend) re-grounded in code (`OllamaEmbeddingAdapter`, `EMBEDDING_BACKEND` type) rather than the lockfile.
+- **2026-09-27**: Note on the 2026-09-27 chromadb/onnxruntime entry above — re-verified: neither package exists in requirements.lock or pyproject.toml at all, so there was nothing to leave untouched for Joy on this point. Superseded by the decisions.md correction same day.
