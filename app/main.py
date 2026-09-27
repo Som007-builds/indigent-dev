@@ -34,7 +34,9 @@ def create_app(settings: Settings | None = None, models_status: object | None = 
     repository = Repository(database)
     # Composition reuses this repository so audit, sovereignty, artifacts, the tool
     # runtime and the orchestrator all share one initialized database handle.
-    services, orchestrator, rag, pid = build_services(settings, repository=repository)
+    services, orchestrator, rag, pid = build_services(
+        settings, repository=repository, models_status=models_status
+    )
     audit = services.audit
     if isinstance(orchestrator, RealControlPlane):
         plane = orchestrator
