@@ -15,6 +15,7 @@ dependencies = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 markers = ["docker: requires Docker", "needs_models: requires Joy's real modules and local models"]
+pythonpath = ["."]
 
 [tool.ruff]
 target-version = "py311"
