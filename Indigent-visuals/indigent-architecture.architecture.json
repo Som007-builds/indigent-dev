@@ -1,0 +1,250 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Indigent Air-Gapped Backend",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/Som007-builds/indigent-dev.git",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "79e508cc4a0e1097356079853c58dc91454eb6a8"
+    },
+    "views": [
+      {
+        "id": "tool-spine",
+        "label": "The tool spine",
+        "focus": ["orchestrator", "policy", "runtime", "sandbox"],
+        "note": "Model output proposes a tool; only a PolicyDecision lets the runtime execute it."
+      },
+      {
+        "id": "local-plane",
+        "label": "Local plane",
+        "focus": ["ollama", "rag", "qdrant", "sqlite", "artifacts"],
+        "note": "Inference, retrieval, state and artifacts never leave the workstation."
+      },
+      {
+        "id": "air-gap",
+        "label": "Where the air gap holds",
+        "focus": ["orchestrator", "ollama", "groq", "audit"],
+        "note": "One process-wide egress guard; Groq is reachable only when INFERENCE_MODE=groq."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "FastAPI API",
+      "sublabel": "127.0.0.1:8000",
+      "tag": "Soham",
+      "pos": [40, 130],
+      "size": [165, 66],
+      "sources": [
+        { "path": "app/main.py", "line": 116, "label": "X-Inference-Mode header" },
+        { "path": "app/api/chat.py", "line": 21, "label": "POST /api/chat" }
+      ]
+    },
+    {
+      "id": "orchestrator",
+      "type": "backend",
+      "label": "Agent orchestrator",
+      "sublabel": "task states + router",
+      "tag": "Joy",
+      "pos": [315, 130],
+      "size": [165, 66],
+      "sources": [
+        { "path": "app/agent/router.py", "line": 30, "label": "resolve by mode" }
+      ]
+    },
+    {
+      "id": "policy",
+      "type": "security",
+      "label": "Policy validator",
+      "sublabel": "fail-closed allow-list",
+      "tag": "Joy",
+      "pos": [590, 130],
+      "size": [165, 66],
+      "sources": [
+        { "path": "app/policy/allowlist.py", "line": 1, "label": "ALLOWED_TOOLS" }
+      ]
+    },
+    {
+      "id": "runtime",
+      "type": "backend",
+      "label": "Tool runtime",
+      "sublabel": "arg and path checks",
+      "tag": "Soham",
+      "pos": [865, 130],
+      "size": [165, 66],
+      "sources": [
+        { "path": "app/runtime/executor.py", "line": 18, "label": "execute" },
+        { "path": "app/runtime/executor.py", "line": 23, "label": "re-checks allow-list" }
+      ]
+    },
+    {
+      "id": "groq",
+      "type": "external",
+      "label": "Groq",
+      "sublabel": "opt-in dev/test path",
+      "pos": [1140, 130],
+      "size": [165, 66],
+      "sources": [
+        { "path": "app/providers/groq.py", "line": 1, "label": "provider" }
+      ]
+    },
+    {
+      "id": "sqlite",
+      "type": "database",
+      "label": "SQLite",
+      "sublabel": "WAL, tasks, files",
+      "tag": "Soham",
+      "pos": [40, 335],
+      "size": [165, 66],
+      "sources": [
+        { "path": "app/core/db.py", "line": 16, "label": "journal_mode" }
+      ]
+    },
+    {
+      "id": "ollama",
+      "type": "cloud",
+      "label": "Ollama",
+      "sublabel": "models + embeddings",
+      "pos": [315, 335],
+      "size": [165, 66],
+      "sources": [
+        { "path": "app/providers/ollama.py", "line": 1, "label": "provider" }
+      ]
+    },
+    {
+      "id": "rag",
+      "type": "backend",
+      "label": "RAG pipeline",
+      "sublabel": "chunk, retrieve, cite",
+      "tag": "Joy",
+      "pos": [590, 335],
+      "size": [165, 66],
+      "sources": [
+        { "path": "app/rag/retrieval.py", "line": 1, "label": "retrieval" }
+      ]
+    },
+    {
+      "id": "sandbox",
+      "type": "security",
+      "label": "Docker sandbox",
+      "sublabel": "network disabled",
+      "tag": "Soham",
+      "pos": [865, 335],
+      "size": [165, 66],
+      "sources": [
+        { "path": "app/runtime/sandbox.py", "line": 46, "label": "network_mode" }
+      ]
+    },
+    {
+      "id": "qdrant",
+      "type": "database",
+      "label": "Qdrant",
+      "sublabel": "local vector store",
+      "pos": [315, 540],
+      "size": [165, 66],
+      "sources": [
+        { "path": "app/rag/store.py", "line": 1, "label": "vector store" }
+      ]
+    },
+    {
+      "id": "artifacts",
+      "type": "backend",
+      "label": "Artifact store",
+      "sublabel": "DOCX + XLSX output",
+      "tag": "Soham",
+      "pos": [590, 540],
+      "size": [165, 66],
+      "sources": [
+        { "path": "app/core/artifacts.py", "line": 1, "label": "store" }
+      ]
+    },
+    {
+      "id": "audit",
+      "type": "security",
+      "label": "Audit + sovereignty",
+      "sublabel": "append-only evidence",
+      "tag": "Soham",
+      "pos": [865, 540],
+      "size": [165, 66],
+      "sources": [
+        { "path": "app/core/audit.py", "line": 33, "label": "emit" },
+        { "path": "app/net/sovereignty.py", "line": 52, "label": "snapshot" }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Air-gapped host",
+      "wraps": ["api", "orchestrator", "policy", "runtime", "sqlite", "ollama", "rag", "sandbox", "qdrant", "artifacts", "audit"],
+      "pad": 28
+    },
+    {
+      "kind": "security-group",
+      "label": "Enforcement chain",
+      "wraps": ["policy", "runtime", "sandbox"],
+      "pad": 16
+    },
+    {
+      "kind": "security-group",
+      "label": "Loopback only",
+      "wraps": ["ollama"],
+      "pad": 14
+    },
+    {
+      "kind": "region",
+      "label": "External inference",
+      "wraps": ["groq"],
+      "pad": 20
+    }
+  ],
+  "connections": [
+    { "from": "api", "to": "orchestrator", "label": "POST /api/chat", "variant": "emphasis" },
+    { "from": "orchestrator", "to": "policy", "label": "PolicyDecision", "variant": "security" },
+    { "from": "policy", "to": "runtime", "label": "validated args", "variant": "security" },
+    { "from": "runtime", "to": "sandbox", "label": "network disabled", "variant": "security", "labelAt": [1052, 222] },
+    { "from": "orchestrator", "to": "ollama", "label": "local generation", "variant": "emphasis", "labelAt": [397, 222] },
+    { "from": "orchestrator", "to": "rag", "label": "retrieve + cite" },
+    { "from": "rag", "to": "ollama", "label": "embeddings", "labelAt": [578, 427] },
+    { "from": "rag", "to": "qdrant", "label": "vector search" },
+    { "from": "sandbox", "to": "artifacts", "label": "generated files" },
+    { "from": "api", "to": "sqlite", "label": "task + event state", "labelAt": [122, 222] },
+    { "from": "sandbox", "to": "audit", "label": "sandbox events", "variant": "dashed", "labelAt": [947, 427] },
+    {
+      "from": "orchestrator",
+      "to": "groq",
+      "label": "INFERENCE_MODE=groq",
+      "variant": "security",
+      "width": 1.5,
+      "fromSide": "top",
+      "toSide": "top",
+      "via": [[397.5, 45], [1222.5, 45]]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Ownership and the gate",
+      "items": [
+        "Soham owns mechanisms, Joy owns intelligence; JOY_MODULES switches with no try-import fallback",
+        "LLM output never authorizes a tool call; the runtime re-checks the allow-list",
+        "The sandbox runs network-disabled in both local and groq mode",
+        "No Docker means SANDBOX_UNAVAILABLE, never a host subprocess"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Evidence and exposure",
+      "items": [
+        "The API binds 127.0.0.1 and every response carries X-Inference-Mode",
+        "audit_log is append-only, guarded by triggers that abort UPDATE and DELETE",
+        "Any external call in local mode reports AIR-GAP VIOLATED, never AIR-GAPPED"
+      ]
+    }
+  ]
+}

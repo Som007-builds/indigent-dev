@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -9,6 +10,98 @@ from app.contracts.interfaces import ArtifactStore
 from app.contracts.models import ArtifactManifest, TaskContext
 from app.core.workspace import safe_join
 from app.rag.models import ClaimProvenance, EvidenceItem
+
+logger = logging.getLogger(__name__)
+
+# Key the grounded answer generator is expected to populate on ``final_result``.
+# Producing this data is Joy's job; this handler only carries it.
+CALCULATIONS_FIELD = "calculations"
+
+# The wire shape is dictated by ``CalculationSpec`` in
+# app/runtime/generators/docx.py:38, which is a strict pydantic model
+# (extra="forbid"). It is stricter than what the validator reads at
+# app/artifact_validation/validator.py:274-277, so this handler validates
+# against the strict shape: a looser payload would pass the validator and then
+# fail the DOCX build with VALIDATION_ERROR.
+#
+#   {"name": str, "formula": str, "inputs": {str: str}, "result": str}
+#
+# The validator coerces with float(), so string-encoded numbers are correct here.
+_REQUIRED_CALCULATION_KEYS = ("name", "formula", "inputs", "result")
+
+
+def _validated_calculations(answer: dict[str, Any], task_id: str) -> list[dict[str, Any]]:
+    """Extract well-formed calculations, failing closed on anything malformed.
+
+    Entries are normalized down to exactly ``_REQUIRED_CALCULATION_KEYS`` because
+    the DOCX spec forbids extra keys, and anything that is not a well-formed
+    strict entry is dropped rather than forwarded. Dropping is the fail-closed
+    behaviour: a calculation that cannot be verified never reaches a deliverable,
+    and a malformed one can never abort the artifact build.
+    """
+    if CALCULATIONS_FIELD not in answer:
+        logger.info(
+            "grounded answer carries no calculations field; artifact will declare none",
+            extra={"task_id": task_id},
+        )
+        return []
+    raw = answer[CALCULATIONS_FIELD]
+    if not isinstance(raw, (list, tuple)):
+        logger.warning(
+            "grounded answer calculations field is %s, not a list; dropping all",
+            type(raw).__name__,
+            extra={"task_id": task_id},
+        )
+        return []
+    accepted: list[dict[str, Any]] = []
+    for index, item in enumerate(raw):
+        if not isinstance(item, dict):
+            logger.warning(
+                "dropping calculation %d: not an object (%s)", index, type(item).__name__,
+                extra={"task_id": task_id},
+            )
+            continue
+        name = item.get("name")
+        formula = item.get("formula")
+        inputs = item.get("inputs")
+        result = item.get("result")
+        if not isinstance(name, str) or not name.strip():
+            logger.warning(
+                "dropping calculation %d: name must be a non-empty string", index,
+                extra={"task_id": task_id},
+            )
+            continue
+        if not isinstance(formula, str) or not formula.strip():
+            logger.warning(
+                "dropping calculation %d: formula must be a non-empty string", index,
+                extra={"task_id": task_id},
+            )
+            continue
+        if not isinstance(inputs, dict) or not all(
+            isinstance(key, str) and isinstance(value, str) for key, value in inputs.items()
+        ):
+            logger.warning(
+                "dropping calculation %d: inputs must map strings to strings", index,
+                extra={"task_id": task_id},
+            )
+            continue
+        if not isinstance(result, str) or not result.strip():
+            logger.warning(
+                "dropping calculation %d (%s): result must be a non-empty string; "
+                "the DOCX spec does not accept a bare number",
+                index, name,
+                extra={"task_id": task_id},
+            )
+            continue
+        accepted.append(
+            {"name": name, "formula": formula, "inputs": dict(inputs), "result": result}
+        )
+    if not accepted and raw:
+        logger.warning(
+            "every calculation was malformed; artifact will declare none",
+            extra={"task_id": task_id},
+        )
+    return accepted
 
 
 class GroundedAnswerArtifactHandler:
@@ -67,7 +160,6 @@ class GroundedAnswerArtifactHandler:
         findings: list[str] = []
         citation_ids: list[str] = []
         spec_evidence: dict[str, dict[str, Any]] = {}
-        calculations: list[dict[str, Any]] = []
         for claim in claims:
             associated = [evidence_by_id.get(chunk_id) for chunk_id in claim.evidence_chunk_ids]
             if not associated or any(item is None for item in associated):
@@ -97,22 +189,24 @@ class GroundedAnswerArtifactHandler:
             verification_provenance.extend(result.verification for result in results)
             evidence_provenance.extend(result.evidence for result in results)
 
-            # Extract calculations from the claim if present
-            if hasattr(claim, 'calculations') and claim.calculations:
-                for calc in claim.calculations:
-                    if isinstance(calc, dict):
-                        calculations.append({
-                            "name": calc.get("name", ""),
-                            "formula": calc.get("formula", ""),
-                            "inputs": calc.get("inputs", {}),
-                            "result": calc.get("result", ""),
-                        })
-
         outputs = safe_join(context.workspace, "outputs")
         outputs.mkdir(parents=True, exist_ok=True)
         path = safe_join(outputs, "grounded-answer.docx")
         from app.runtime.generators.docx import generate as generate_docx
 
+        calculations = _validated_calculations(answer, task.task_id)
+        sections = [
+            {"heading": "Verified Findings", "paragraphs": findings, "citations": sorted(set(citation_ids))},
+            {"heading": "Citation Verification", "paragraphs": [
+                f"{item['claim_id']} / {item['chunk_id']}: verified"
+                for item in sorted(({
+                    "claim_id": result.claim_id,
+                    "chunk_id": result.evidence.chunk_id,
+                } for result in citation_results), key=lambda item: (item["claim_id"], item["chunk_id"]))
+            ]},
+            {"heading": "Grounded Analysis", "paragraphs": [answer["answer"]]},
+        ]
+        spec_evidence_sorted = sorted(spec_evidence.values(), key=lambda item: item["chunk_id"])
         spec = {
             "title": "Inspection Approval Note",
             "metadata": {
@@ -121,18 +215,8 @@ class GroundedAnswerArtifactHandler:
                 "generated_at": "deterministic-content",
                 "content_hash": "computed-by-generator",
             },
-            "sections": [
-                {"heading": "Verified Findings", "paragraphs": findings, "citations": sorted(set(citation_ids))},
-                {"heading": "Citation Verification", "paragraphs": [
-                    f"{item['claim_id']} / {item['chunk_id']}: verified"
-                    for item in sorted(({
-                        "claim_id": result.claim_id,
-                        "chunk_id": result.evidence.chunk_id,
-                    } for result in citation_results), key=lambda item: (item["claim_id"], item["chunk_id"]))
-                ]},
-                {"heading": "Grounded Analysis", "paragraphs": [answer["answer"]]},
-            ],
-            "evidence": sorted(spec_evidence.values(), key=lambda item: item["chunk_id"]),
+            "sections": sections,
+            "evidence": spec_evidence_sorted,
             "calculations": calculations,
             "assumptions": ["Only citation-verified claims are presented as findings."],
             "recommendation": answer["answer"],
@@ -150,16 +234,12 @@ class GroundedAnswerArtifactHandler:
                 "spec": {
                     "title": "Inspection Approval Note",
                     "metadata": {"task_id": task.task_id, "verification_status": "passed"},
-                    "sections": [
-                        {"heading": "Verified Findings", "paragraphs": findings, "citations": sorted(set(citation_ids))},
-                        {"heading": "Citation Verification", "paragraphs": [f"{item['claim_id']} / {item['chunk_id']}: verified" for item in sorted(({"claim_id": result.claim_id, "chunk_id": result.evidence.chunk_id} for result in citation_results), key=lambda item: (item["claim_id"], item["chunk_id"]))]},
-                        {"heading": "Grounded Analysis", "paragraphs": [answer["answer"]]},
-                    ],
-"evidence": sorted(spec_evidence.values(), key=lambda item: item["chunk_id"]),
-            "calculations": calculations,
-            "assumptions": ["Only citation-verified claims are presented as findings."],
-            "recommendation": answer["answer"],
-        },
+                    "sections": sections,
+                    "evidence": spec_evidence_sorted,
+                    "calculations": calculations,
+                    "assumptions": ["Only citation-verified claims are presented as findings."],
+                    "recommendation": answer["answer"],
+                },
             },
         )
         self._contexts[task.task_id] = ArtifactValidationContext(
@@ -167,6 +247,7 @@ class GroundedAnswerArtifactHandler:
             citation_results=tuple(citation_results),
             verifications=tuple(verification_provenance),
             expected_fields=("title", "sections", "evidence", "recommendation"),
+            calculations=tuple(calculations),
             provenance=tuple({
                 "document_id": item.document_id,
                 "chunk_id": item.chunk_id,

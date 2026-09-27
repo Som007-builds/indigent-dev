@@ -8,6 +8,7 @@ manager fails closed instead of admitting a model it cannot fit.
 
 from __future__ import annotations
 
+import ctypes
 import os
 import platform
 import re
@@ -29,6 +30,54 @@ class HardwareMeasurementError(RuntimeError):
 class _RawMemory:
     total_mb: int | None
     available_mb: int | None
+
+
+class _MemoryStatusEx(ctypes.Structure):
+    """Win32 ``MEMORYSTATUSEX``, declared with fixed-width fields.
+
+    The documented layout is two ``DWORD`` followed by seven ``DWORDLONG``, i.e. 64
+    bytes. ``c_ulong`` is only 4 bytes on Windows and 8 on 64-bit Linux, so using it
+    here would make this structure silently wrong on every host except the one that
+    calls it, and would hide the mistake from a test run on any other platform.
+    """
+
+    _fields_ = [
+        ("dwLength", ctypes.c_uint32),
+        ("dwMemoryLoad", ctypes.c_uint32),
+        ("ullTotalPhys", ctypes.c_uint64),
+        ("ullAvailPhys", ctypes.c_uint64),
+        ("ullTotalPageFile", ctypes.c_uint64),
+        ("ullAvailPageFile", ctypes.c_uint64),
+        ("ullTotalVirtual", ctypes.c_uint64),
+        ("ullAvailVirtual", ctypes.c_uint64),
+        ("ullAvailExtendedVirtual", ctypes.c_uint64),
+    ]
+
+
+def _global_memory_status_ex() -> tuple[int, int]:
+    """Read physical memory from kernel32 as (total_bytes, available_bytes).
+
+    Isolated as the single Win32 seam so the Windows branch stays reachable from a
+    test on any host, and so a failing API call is reported as an unknown measurement
+    rather than being mistaken for an empty machine.
+    """
+    load_library = getattr(ctypes, "WinDLL", None)
+    if load_library is None:
+        raise HardwareMeasurementError("ctypes.WinDLL is unavailable on this platform")
+    status = _MemoryStatusEx()
+    status.dwLength = ctypes.sizeof(_MemoryStatusEx)
+    if not load_library("kernel32", use_last_error=True).GlobalMemoryStatusEx(
+        ctypes.byref(status)
+    ):
+        raise HardwareMeasurementError(
+            f"GlobalMemoryStatusEx failed (winerror {ctypes.get_last_error()})"
+        )
+    return int(status.ullTotalPhys), int(status.ullAvailPhys)
+
+
+def _windows_memory() -> _RawMemory:
+    total_bytes, available_bytes = _global_memory_status_ex()
+    return _RawMemory(total_bytes // _MB, available_bytes // _MB)
 
 
 def _macos_memory() -> _RawMemory:
@@ -98,6 +147,8 @@ def measure_memory() -> _RawMemory:
         return _macos_memory()
     if system == "Linux":
         return _linux_memory()
+    if system == "Windows":
+        return _windows_memory()
     raise HardwareMeasurementError(f"unsupported platform for memory measurement: {system}")
 
 
@@ -128,6 +179,13 @@ class LocalHardwareResources:
         if system == "Linux":
             discrete = _nvidia_vram_mb()
             return discrete if discrete is not None else memory.available_mb
+        if system == "Windows":
+            # Deliberately no fallback to system RAM, unlike the Linux branch above.
+            # A discrete NVIDIA card has a VRAM budget separate from host memory, so
+            # substituting available host RAM here would admit a model the GPU cannot
+            # hold. No nvidia-smi means an unknown measurement, and unknown stays
+            # unknown so admission fails closed.
+            return _nvidia_vram_mb()
         return None
 
 

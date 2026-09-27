@@ -13,7 +13,7 @@ from app.core.workspace import safe_join
 
 
 def build_services(
-    settings: Settings, repository: Any | None = None
+    settings: Settings, repository: Any | None = None, models_status: object | None = None
 ) -> tuple[Services, object, object, object]:
     """Build the explicitly selected module set; real mode never falls back.
 
@@ -22,7 +22,16 @@ def build_services(
     instead of opening a second, never-initialized connection to the same file.
     """
     if settings.joy_modules == "real":
-        return build_real_services(settings, repository=repository)
+        try:
+            return build_real_services(settings, repository=repository)
+        except RuntimeError as err:
+            if settings.inference_mode == "groq" and settings.groq_api_key:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Local modules unavailable for Groq mode (%s); falling back to Groq dev orchestrator", err
+                )
+            else:
+                raise
 
     from app.core.audit import AuditLoggerImpl
     from app.core.db import Database
@@ -54,7 +63,7 @@ def build_services(
         workspace_root=workspace_root,
     )
     services.runtime = ToolRuntimeImpl(settings, services)
-    return services, StubOrchestrator(), StubRag(), StubPid()
+    return services, StubOrchestrator(settings=settings, models_status=models_status), StubRag(), StubPid()
 
 
 @dataclass(frozen=True)
@@ -213,13 +222,72 @@ class ProductionTaskRetriever:
         return [item.__dict__ for item in result.items]
 
 
-def _retrieval_tool_schema():
-    from app.providers import ToolSchema
-
-    return ToolSchema(
-        "search_knowledge_base",
+# Single source of truth for the tool menu handed to the planner.
+#
+# Names are NOT written here: they are checked against Joy's allow-list on every
+# build, so the menu cannot advertise a tool that policy would later deny. The
+# descriptions and parameter shapes live here and nowhere else.
+_TOOL_SCHEMA_CATALOG: dict[str, tuple[str, dict[str, Any]]] = {
+    "search_knowledge_base": (
         "Retrieve evidence from the supplied task documents using local RAG.",
         {"type": "object", "required": ["query"], "properties": {"query": {"type": "string"}}},
+    ),
+    "create_docx": (
+        "Write a DOCX deliverable into the task workspace outputs directory.",
+        {
+            "type": "object",
+            "required": ["output", "spec"],
+            "properties": {
+                "output": {"type": "string", "description": "Workspace-relative .docx path."},
+                "spec": {"type": "object", "description": "DOCX spec: title, sections, evidence."},
+            },
+        },
+    ),
+    "create_xlsx": (
+        "Write an XLSX deliverable into the task workspace outputs directory.",
+        {
+            "type": "object",
+            "required": ["output", "spec"],
+            "properties": {
+                "output": {"type": "string", "description": "Workspace-relative .xlsx path."},
+                "spec": {
+                    "type": "object",
+                    "description": "XLSX spec: sheets, each with name, columns and rows.",
+                },
+            },
+        },
+    ),
+}
+
+# Tools the artifact stage depends on. If one of these is ever dropped from the
+# catalog the build fails loudly instead of silently producing a task that can
+# never produce a deliverable.
+_REQUIRED_PLANNER_TOOLS = frozenset({"search_knowledge_base", "create_docx", "create_xlsx"})
+
+
+def _planner_tool_schemas() -> tuple[Any, ...]:
+    """Build the planner's tool menu, validated against Joy's allow-list.
+
+    Exposing a tool is not the same as permitting it: policy still decides every
+    individual call. This only widens what the planner is able to name.
+    """
+    from app.policy.allowlist import KNOWN_TOOLS
+    from app.providers import ToolSchema
+
+    unknown = sorted(set(_TOOL_SCHEMA_CATALOG) - KNOWN_TOOLS)
+    if unknown:
+        raise RuntimeError(
+            "planner tool menu advertises tools absent from ALLOWED_TOOLS: "
+            + ", ".join(unknown)
+        )
+    missing = sorted(_REQUIRED_PLANNER_TOOLS - set(_TOOL_SCHEMA_CATALOG))
+    if missing:
+        raise RuntimeError(
+            "planner tool menu is missing required tools: " + ", ".join(missing)
+        )
+    return tuple(
+        ToolSchema(name, description, parameters)
+        for name, (description, parameters) in _TOOL_SCHEMA_CATALOG.items()
     )
 
 
@@ -237,8 +305,6 @@ def build_real_services(
         raise RuntimeError(f"JOY_MODULES=real requires production model configuration: {error}") from error
     if not any(item.mode == settings.inference_mode and item.enabled for item in inventory):
         raise RuntimeError("JOY_MODULES=real has no enabled model for configured inference mode")
-    if settings.inference_mode == "groq":
-        raise RuntimeError("JOY_MODULES=real currently requires explicit local inference mode")
 
     from app.agent.answer import GroundedAnswerGenerator
     from app.agent.grounded_artifact import GroundedAnswerArtifactHandler
@@ -312,7 +378,7 @@ def build_real_services(
         verifier=TaskVerifier(require_terminal_result=False),
         artifacts=_PlatformArtifactHandler(artifact_store),
         policy=services.policy,
-        tools=(_retrieval_tool_schema(),),
+        tools=_planner_tool_schemas(),
         retrieve=task_retriever,
         citation_verifier=citation,
         artifact_validator=semantic_validator,
@@ -473,15 +539,22 @@ class _ProductionRetrievalTools:
     def _ocr_document(self, ctx: Any, args: dict) -> dict:
         """Extract real text from a document in the task workspace.
 
-        This uses the local document text layer. A scanned page has no text layer and no
-        OCR engine is provisioned on this deployment, so it fails closed rather than
-        inventing a transcription. The error names the remedy so an operator can resolve
-        the gap instead of guessing.
+        This uses the local document text layer (PyMuPDF) and falls back to real
+        Tesseract OCR for a scanned page, through LocalDocumentExtractor ->
+        LocalPDFTextExtractor -> OCRAdapter. No code change is needed to enable it:
+        OCR works today once the Tesseract binary is installed on the host, which
+        OCRAdapter.available() reports by probing that binary. Image inputs are out of
+        scope for this tool -- _DOCUMENT_SUFFIXES covers text and PDF only.
+
+        When neither path yields text the tool fails closed rather than inventing a
+        transcription. The error names the missing host dependency so an operator can
+        resolve it instead of guessing.
         """
         remedy = (
-            "no local OCR engine is provisioned; install a local OCR engine such as "
-            "tesseract and wire it into LocalDocumentExtractor, or supply a "
-            "text-layer document"
+            "no text could be extracted locally; if this is a scanned page, install the "
+            "tesseract OCR engine on the host and restart the service so the adapter "
+            "re-probes it (no code change is needed), or supply a document that has a "
+            "text layer"
         )
         if self.extractor is None:
             raise MLToolUnavailable("OCR_UNAVAILABLE", remedy)

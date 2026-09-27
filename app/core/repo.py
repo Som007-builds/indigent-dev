@@ -31,6 +31,23 @@ class Repository:
             ).fetchone()
         return dict(row) if row else None
 
+    async def list_tasks(self, limit: int = 50) -> list[dict[str, Any]]:
+        async with self.db.connection() as conn:
+            rows = await (
+                await conn.execute("SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?", (limit,))
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    async def list_files(self, kind: str | None = None) -> list[dict[str, Any]]:
+        query, args = (
+            ("SELECT * FROM files ORDER BY created_at DESC", ())
+            if kind is None
+            else ("SELECT * FROM files WHERE kind=? ORDER BY created_at DESC", (kind,))
+        )
+        async with self.db.connection() as conn:
+            rows = await (await conn.execute(query, args)).fetchall()
+        return [dict(row) for row in rows]
+
     async def update_task_fields(self, task_id: str, **fields: Any) -> None:
         if not fields:
             return

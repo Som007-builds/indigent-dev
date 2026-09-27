@@ -23,6 +23,11 @@ from app.stubs.models_status import StubModelsStatus
 
 def create_app(settings: Settings | None = None, models_status: object | None = None) -> FastAPI:
     settings = settings or get_settings()
+    # The fallback stub is required by the stub composition and by the /api/models route,
+    # but it must stay distinguishable from a caller-injected status, because the real
+    # control plane has to be able to override the fallback further down.
+    injected_models_status = models_status
+    models_status = models_status or StubModelsStatus(settings)
     configure_logging(settings.data_dir, settings.log_level)
     logging.getLogger(__name__).info(
         "startup mode=%s profile=%s", settings.inference_mode, settings.local_hardware_profile
@@ -33,12 +38,17 @@ def create_app(settings: Settings | None = None, models_status: object | None = 
     repository = Repository(database)
     # Composition reuses this repository so audit, sovereignty, artifacts, the tool
     # runtime and the orchestrator all share one initialized database handle.
-    services, orchestrator, rag, pid = build_services(settings, repository=repository)
+    services, orchestrator, rag, pid = build_services(
+        settings, repository=repository, models_status=models_status
+    )
     audit = services.audit
     if isinstance(orchestrator, RealControlPlane):
         plane = orchestrator
         orchestrator = plane.orchestrator
-        models_status = models_status or plane.models_status
+        # The real plane owns the live model registry, so its status outranks the
+        # fallback stub created above; an explicitly injected status still outranks
+        # the plane, which is the override tests and callers rely on.
+        models_status = injected_models_status or plane.models_status
     bus = EventBus(repository, settings.inference_mode)
     runner = TaskRunner(repository, bus, services, orchestrator, settings)
 
@@ -148,7 +158,8 @@ def create_app(settings: Settings | None = None, models_status: object | None = 
     app.include_router(tasks_router(runner, bus, repository))
     app.include_router(files_router(settings, repository, audit))
     app.include_router(knowledge_router(settings, repository, audit, rag))
-    app.include_router(models_router(models_status or getattr(services, "models_status", StubModelsStatus())))
+    # Resolved once above: an injected status, else the real plane's, else the stub.
+    app.include_router(models_router(models_status))
     app.include_router(monitoring_router(services.sovereignty))
     app.include_router(pid_router(settings, repository, audit, pid, services.artifacts))
     app.include_router(health_router(settings, database))

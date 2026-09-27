@@ -121,8 +121,27 @@ class ArtifactStoreImpl:
                             bundle.write(item, Path(prefix) / item.relative_to(root))
         return await self.register(ctx, "code_package", str(archive))
 
+    async def create_stub_docx(self, ctx: TaskContext) -> ArtifactManifest:
+        from docx import Document
+
+        outputs = safe_join(ctx.workspace, "outputs")
+        outputs.mkdir(parents=True, exist_ok=True)
+        path = outputs / "stub-report.docx"
+        document = Document()
+        document.add_heading("Indigent Verification Report", level=1)
+        document.add_paragraph("Industrial AI-Harness Sovereign Report")
+        document.add_paragraph(f"Task ID: {ctx.task_id}")
+        document.save(path)
+        return await self.register(
+            ctx,
+            "docx",
+            str(path),
+            metadata={"title": "Verification Report", "format": "docx"},
+        )
+
     async def require_intact(self, artifact_id: str) -> ArtifactManifest:
         manifest = await self.get(artifact_id)
         if not await self.verify_integrity(artifact_id):
             raise ArtifactCorruptError()
         return manifest
+
