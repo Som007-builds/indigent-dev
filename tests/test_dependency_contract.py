@@ -10,6 +10,7 @@ environment reproducible.
 
 from __future__ import annotations
 
+import ast
 import re
 import sys
 import tomllib
@@ -18,7 +19,6 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-IMPORT = re.compile(r"^\s*(?:from|import)\s+([A-Za-z_][A-Za-z_0-9]*)", re.MULTILINE)
 
 # Distribution name -> import name. Only needed where they differ.
 DISTRIBUTION_ALIASES = {
@@ -47,35 +47,50 @@ def _declared() -> set[str]:
 
 
 def _imported() -> set[str]:
-    """Walk app/ and tools/ to collect every top-level import name.
-
-    Pure-Python implementation so the test runs on Windows (no grep binary
-    required) and in sandboxed environments where subprocess PATH is minimal.
-    The regex matches both leading-whitespace (function-local) imports and
-    top-level imports, matching the original grep pattern exactly.
-    """
-    pattern = re.compile(
-        r"^[ \t]*(?:from|import)\s+([A-Za-z_][A-Za-z_0-9]*)",
-        re.MULTILINE,
-    )
-    names: set[str] = set()
-    for directory in ("app", "tools"):
-        base = ROOT / directory
-        if not base.is_dir():
+    """Scan Python source tree for imported module names using AST."""
+    imports: set[str] = set()
+    for py_file in (ROOT / "app").rglob("*.py"):
+        try:
+            source = py_file.read_text(encoding="utf-8")
+        except OSError:
             continue
-        for py_file in base.rglob("*.py"):
+        try:
+            tree = ast.parse(source, filename=str(py_file))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    imports.add(alias.name.split(".")[0])
+            elif isinstance(node, ast.ImportFrom):
+                # Only consider absolute imports (level == 0) to avoid
+                # picking up relative imports like "from .chunking import ..."
+                if node.level == 0 and node.module and not node.module.startswith("app."):
+                    imports.add(node.module.split(".")[0])
+    # Also scan tools/ if it exists
+    tools_dir = ROOT / "tools"
+    if tools_dir.exists():
+        for py_file in tools_dir.rglob("*.py"):
             try:
-                text = py_file.read_text(encoding="utf-8", errors="replace")
+                source = py_file.read_text(encoding="utf-8")
             except OSError:
                 continue
-            for match in pattern.findall(text):
-                names.add(match.lower())
-    return names
+            try:
+                tree = ast.parse(source, filename=str(py_file))
+            except SyntaxError:
+                continue
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        imports.add(alias.name.split(".")[0])
+                elif isinstance(node, ast.ImportFrom):
+                    if node.level == 0 and node.module and not node.module.startswith("app."):
+                        imports.add(node.module.split(".")[0])
+    return imports
 
 
 def test_every_imported_third_party_module_is_declared():
     declared = _declared()
-    stdlib = set(sys.stdlib_module_names)
     # Expand declared distributions to their import names. Alias keys are normalized
     # the same way as the declared names (lowercase, hyphens to underscores).
     normalized_aliases = {
@@ -89,7 +104,7 @@ def test_every_imported_third_party_module_is_declared():
     undeclared = set()
     for module in _imported():
         module = module.lower()
-        if module in TOOLING or module in stdlib or module.startswith("_"):
+        if module in TOOLING or module in STDLIB or module.startswith("_"):
             continue
         if module not in covered:
             undeclared.add(module)

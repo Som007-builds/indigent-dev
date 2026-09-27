@@ -77,7 +77,7 @@ def _nvidia_vram_mb() -> int | None:
         return None
     try:
         output = subprocess.run(
-            [binary, "--query-gpu=memory.total", "--format=csv,noheader,nounits"],
+            [binary, "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
             capture_output=True,
             text=True,
             timeout=5,

@@ -1,5 +1,0 @@
-{"level": "INFO", "message": "startup mode=local profile=mac_silicon"}
-{"level": "INFO", "message": "HTTP Request: GET http://testserver/healthz \"HTTP/1.1 200 OK\""}
-{"level": "INFO", "message": "HTTP Request: GET http://testserver/readyz \"HTTP/1.1 503 Service Unavailable\""}
-{"level": "INFO", "message": "HTTP Request: GET http://testserver/api/models \"HTTP/1.1 200 OK\""}
-{"level": "ERROR", "message": "unhandled request error"}

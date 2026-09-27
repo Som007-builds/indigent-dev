@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+from PIL import Image, UnidentifiedImageError
 from pydantic import ValidationError
 
 from app.contracts.models import ArtifactManifest
@@ -122,7 +123,7 @@ class SemanticArtifactValidator:
                 unverified = True
             except Exception:
                 checks.append({"name": "xlsx_readable", "passed": False, "reason": "MALFORMED_XLSX"})
-        elif artifact.artifact_type in {"pptx", "code_package", "pid_overlay"}:
+        elif artifact.artifact_type in {"pptx", "code_package"}:
             if artifact.artifact_type == "pptx":
                 checks.append({"name": "pptx_validation", "passed": None, "reason": "UNSUPPORTED_VALIDATOR"})
                 unverified = True
@@ -134,8 +135,30 @@ class SemanticArtifactValidator:
                     checks.append({"name": "zip_integrity", "passed": valid, "reason": None if valid else "CORRUPT_ARCHIVE"})
                 except (zipfile.BadZipFile, OSError):
                     checks.append({"name": "zip_integrity", "passed": False, "reason": "MALFORMED_ARCHIVE"})
-                if artifact.artifact_type == "pid_overlay":
-                    unverified = True
+        elif artifact.artifact_type == "pid_overlay":
+            # pid_overlay is an image (PNG/JPEG), not a ZIP. Validate as real image.
+            try:
+                with Image.open(path) as img:
+                    img.verify()
+                # Re-open to check format matches extension
+                with Image.open(path) as img:
+                    img_format = img.format
+                    ext = path.suffix.lower().lstrip(".")
+                    expected = {"png": "PNG", "jpg": "JPEG", "jpeg": "JPEG", "tif": "TIFF", "tiff": "TIFF"}.get(ext)
+                    if expected and img_format != expected:
+                        checks.append({"name": "pid_overlay_format", "passed": False, "reason": "IMAGE_FORMAT_MISMATCH"})
+                    else:
+                        checks.append({"name": "pid_overlay_format", "passed": True})
+                # Size bounds
+                if img.width > 8192 or img.height > 8192:
+                    checks.append({"name": "pid_overlay_dimensions", "passed": False, "reason": "DIMENSIONS_EXCEED_LIMIT"})
+                else:
+                    checks.append({"name": "pid_overlay_dimensions", "passed": True})
+            except (UnidentifiedImageError, OSError):
+                checks.append({"name": "pid_overlay_image", "passed": False, "reason": "MALFORMED_IMAGE"})
+            except ImportError:
+                checks.append({"name": "pid_overlay_image", "passed": None, "reason": "IMAGE_VALIDATOR_UNAVAILABLE"})
+                unverified = True
         elif artifact.artifact_type == "graph_json":
             try:
                 value = json.loads(content)

@@ -52,7 +52,10 @@ class TaskRunner:
                 if record is not None:
                     source = Path(record["stored_path"])
                     if source.is_file():
-                        shutil.copy2(source, safe_join(workspace / "inputs", file_id))
+                        # Preserve the trusted server-side extension (not raw filename)
+                        # to keep workspace confinement and allow retriever to identify type.
+                        extension = source.suffix.lower()
+                        shutil.copy2(source, safe_join(workspace / "inputs", f"{file_id}{extension}"))
             await self.repo.create_task(task_id, user_request, self.settings.inference_mode)
             await self.bus.publish(
                 task_id,
@@ -111,6 +114,10 @@ class TaskRunner:
             LOGGER.exception("task runner failed task_id=%s", task_id)
             await self._fail(task_id, "INTERNAL", "Task execution failed")
         finally:
+            # Release any idle models held by this task to free memory for subsequent tasks.
+            router = getattr(self.orchestrator, "router", None)
+            if router is not None and getattr(router, "resources", None) is not None:
+                await router.resources.unload_idle()
             self._tasks.pop(task_id, None)
             self._approved_tasks.discard(task_id)
             log_task_id.reset(log_token)
