@@ -764,6 +764,8 @@ class _ConfiguredModelsStatus:
         self.settings, self.registry, self.resources = settings, registry, resources
 
     def status(self) -> dict[str, Any]:
+        # Sync with Ollama to reflect actual model residency
+        self.resources.sync_ollama_residency(self.settings.ollama_base_url)
         return {
             "active_inference_mode": self.settings.inference_mode,
             "hardware_profile": self.settings.local_hardware_profile,

@@ -54,6 +54,7 @@ class ClaimProvenance:
     evidence_chunk_ids: tuple[str, ...] = ()
     verification_id: str | None = None
     artifact_id: str | None = None
+    calculations: tuple[dict[str, Any], ...] = ()
 
 
 @dataclass(frozen=True)

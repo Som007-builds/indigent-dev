@@ -68,8 +68,9 @@ class GroundedAnswerGenerator:
             "information explicitly in the answer and do not create a supported claim for it. "
             "Return JSON only with exactly these fields: answer (string), claims (array of objects). "
             "Each claim object must contain exactly claim_id (non-empty string), text (non-empty string), "
-            "and evidence_chunk_ids (non-empty array of supplied chunk_id strings). If no evidence "
-            "supports an answer, return an explicit no-evidence answer and an empty claims array.\n"
+            "evidence_chunk_ids (non-empty array of supplied chunk_id strings), and optionally "
+            "calculations (array of objects with name, formula, inputs, result as strings). "
+            "If no evidence supports an answer, return an explicit no-evidence answer and an empty claims array.\n"
             f"Question: {question}\nEvidence JSON: {json.dumps(records, ensure_ascii=False)}{repair}"
         )
 
@@ -88,8 +89,15 @@ class GroundedAnswerGenerator:
         claim_ids: set[str] = set()
         claims: list[ClaimProvenance] = []
         for raw in raw_claims:
-            if not isinstance(raw, dict) or set(raw) != {"claim_id", "text", "evidence_chunk_ids"}:
+            if not isinstance(raw, dict):
+                raise MalformedGroundedAnswerError("claim must be an object")
+            required_fields = {"claim_id", "text", "evidence_chunk_ids"}
+            optional_fields = {"calculations"}
+            if not isinstance(raw, dict) or not required_fields.issubset(raw.keys()):
                 raise MalformedGroundedAnswerError("claim has missing or unexpected fields")
+            unexpected = set(raw.keys()) - required_fields - optional_fields
+            if unexpected:
+                raise MalformedGroundedAnswerError(f"claim has unexpected fields: {unexpected}")
             claim_id, claim_text, chunk_ids = raw["claim_id"], raw["text"], raw["evidence_chunk_ids"]
             if not isinstance(claim_id, str) or not claim_id.strip() or claim_id in claim_ids:
                 raise MalformedGroundedAnswerError("claim IDs must be non-empty and unique")
@@ -102,5 +110,30 @@ class GroundedAnswerGenerator:
             if len(set(chunk_ids)) != len(chunk_ids):
                 raise MalformedGroundedAnswerError("claim has duplicate evidence references")
             claim_ids.add(claim_id)
-            claims.append(ClaimProvenance(claim_id, claim_text, tuple(chunk_ids)))
+
+            # Parse calculations if present
+            calculations = tuple()
+            if "calculations" in raw:
+                calcs = raw.get("calculations", [])
+                if not isinstance(calcs, list):
+                    raise MalformedGroundedAnswerError("calculations must be an array")
+                calc_list = []
+                for calc in calcs:
+                    if not isinstance(calc, dict):
+                        raise MalformedGroundedAnswerError("calculation must be an object")
+                    calc_fields = {"name", "formula", "inputs", "result"}
+                    if not all(f in calc for f in calc_fields):
+                        raise MalformedGroundedAnswerError("calculation missing required fields")
+                    if not isinstance(calc.get("inputs"), dict):
+                        raise MalformedGroundedAnswerError("calculation inputs must be an object")
+                    calc_list.append({
+                        "name": calc["name"],
+                        "formula": calc["formula"],
+                        "inputs": calc["inputs"],
+                        "result": calc["result"],
+                    })
+                calculations = tuple(calc_list)
+
+            claim_ids.add(claim_id)
+            claims.append(ClaimProvenance(claim_id, claim_text, tuple(chunk_ids), calculations=calculations))
         return answer.strip(), tuple(claims)

@@ -74,6 +74,9 @@ class FakeClient:
             if point.payload.get("document_id") != document_id
         }
 
+    def create_payload_index(self, collection_name, field_name, field_schema="keyword"):
+        pass
+
     def query_points(self, **kwargs):
         self.search_query = kwargs
         allowed = None
@@ -167,10 +170,14 @@ def test_qdrant_rest_transport_uses_local_http_api(monkeypatch):
     )
     store = QdrantVectorStore("http://localhost:6333", "evidence", vector_size=2)
     store.upsert([Chunk("doc:0", "doc", "hash", "text")], [[1.0, 0.0]])
+    # Sequence: GET /collections/evidence (404), PUT /collections/evidence (create),
+    # PUT /collections/evidence/index (payload index), PUT /collections/evidence/points (upsert)
     assert requests[0].url.path == "/collections/evidence"
     assert requests[1].url.path == "/collections/evidence"
     assert requests[2].method == "PUT"
-    assert requests[2].url.path == "/collections/evidence/points"
+    assert requests[2].url.path == "/collections/evidence/index"
+    assert requests[3].method == "PUT"
+    assert requests[3].url.path == "/collections/evidence/points"
 
 
 def test_local_pdf_extractor_preserves_page_start_metadata(monkeypatch, tmp_path):

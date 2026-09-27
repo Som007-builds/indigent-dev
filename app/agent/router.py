@@ -38,6 +38,9 @@ class ModelRouter:
             candidates = self.registry.candidates(
                 task_type, mode, self.settings.local_hardware_profile
             )
+        # Sync Ollama residency so ResourceManager knows about models loaded outside its control
+        if self.resources is not None:
+            self.resources.sync_ollama_residency(self.settings.ollama_base_url)
         for model in candidates:
             if model is None or model.mode != mode or not model.available:
                 continue

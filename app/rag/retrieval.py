@@ -47,7 +47,10 @@ class Retriever:
         vectors = self.embedder.embed([query])
         if len(vectors) != 1:
             raise ValueError("embedding interface returned an invalid result")
-        rows = self.store.search(vectors[0], limit, document_ids=document_ids)
+        # Fetch more candidates than the final limit so the reranker can choose the best.
+        # Use a multiplier to ensure relevant chunks aren't lost in the initial vector search.
+        search_limit = max(limit * 4, 20)
+        rows = self.store.search(vectors[0], search_limit, document_ids=document_ids)
         items: list[EvidenceItem] = []
         for row in rows:
             item = self._item(row)
@@ -59,7 +62,7 @@ class Retriever:
             )
         if self.reranker:
             items.sort(key=lambda item: item.reranking_score or 0.0, reverse=True)
-        return RetrievalResult(query=query, items=items)
+        return RetrievalResult(query=query, items=items[:limit])
 
     def _item(self, row: dict[str, Any]) -> EvidenceItem:
         if not isinstance(row, dict):
