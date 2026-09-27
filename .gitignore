@@ -46,3 +46,5 @@ logs/
 
 # Local development
 *.local
+scratch/test_env*
+scratch/test_env_*/
