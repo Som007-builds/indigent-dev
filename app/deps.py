@@ -222,13 +222,72 @@ class ProductionTaskRetriever:
         return [item.__dict__ for item in result.items]
 
 
-def _retrieval_tool_schema():
-    from app.providers import ToolSchema
-
-    return ToolSchema(
-        "search_knowledge_base",
+# Single source of truth for the tool menu handed to the planner.
+#
+# Names are NOT written here: they are checked against Joy's allow-list on every
+# build, so the menu cannot advertise a tool that policy would later deny. The
+# descriptions and parameter shapes live here and nowhere else.
+_TOOL_SCHEMA_CATALOG: dict[str, tuple[str, dict[str, Any]]] = {
+    "search_knowledge_base": (
         "Retrieve evidence from the supplied task documents using local RAG.",
         {"type": "object", "required": ["query"], "properties": {"query": {"type": "string"}}},
+    ),
+    "create_docx": (
+        "Write a DOCX deliverable into the task workspace outputs directory.",
+        {
+            "type": "object",
+            "required": ["output", "spec"],
+            "properties": {
+                "output": {"type": "string", "description": "Workspace-relative .docx path."},
+                "spec": {"type": "object", "description": "DOCX spec: title, sections, evidence."},
+            },
+        },
+    ),
+    "create_xlsx": (
+        "Write an XLSX deliverable into the task workspace outputs directory.",
+        {
+            "type": "object",
+            "required": ["output", "spec"],
+            "properties": {
+                "output": {"type": "string", "description": "Workspace-relative .xlsx path."},
+                "spec": {
+                    "type": "object",
+                    "description": "XLSX spec: sheets, each with name, columns and rows.",
+                },
+            },
+        },
+    ),
+}
+
+# Tools the artifact stage depends on. If one of these is ever dropped from the
+# catalog the build fails loudly instead of silently producing a task that can
+# never produce a deliverable.
+_REQUIRED_PLANNER_TOOLS = frozenset({"search_knowledge_base", "create_docx", "create_xlsx"})
+
+
+def _planner_tool_schemas() -> tuple[Any, ...]:
+    """Build the planner's tool menu, validated against Joy's allow-list.
+
+    Exposing a tool is not the same as permitting it: policy still decides every
+    individual call. This only widens what the planner is able to name.
+    """
+    from app.policy.allowlist import KNOWN_TOOLS
+    from app.providers import ToolSchema
+
+    unknown = sorted(set(_TOOL_SCHEMA_CATALOG) - KNOWN_TOOLS)
+    if unknown:
+        raise RuntimeError(
+            "planner tool menu advertises tools absent from ALLOWED_TOOLS: "
+            + ", ".join(unknown)
+        )
+    missing = sorted(_REQUIRED_PLANNER_TOOLS - set(_TOOL_SCHEMA_CATALOG))
+    if missing:
+        raise RuntimeError(
+            "planner tool menu is missing required tools: " + ", ".join(missing)
+        )
+    return tuple(
+        ToolSchema(name, description, parameters)
+        for name, (description, parameters) in _TOOL_SCHEMA_CATALOG.items()
     )
 
 
@@ -321,7 +380,7 @@ def build_real_services(
         verifier=TaskVerifier(require_terminal_result=False),
         artifacts=_PlatformArtifactHandler(artifact_store),
         policy=services.policy,
-        tools=(_retrieval_tool_schema(),),
+        tools=_planner_tool_schemas(),
         retrieve=task_retriever,
         citation_verifier=citation,
         artifact_validator=semantic_validator,
