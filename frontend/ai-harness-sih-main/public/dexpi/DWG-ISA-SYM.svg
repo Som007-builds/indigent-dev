@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="760.0" height="440.0" viewBox="-40.0 -400.0 760.0 440.0">
+  <metadata>DEXPI Diagram: ISA-5.1 / ISO 10628 Standard Equipment &amp; Symbology</metadata>
+  <g id="diagram-ISA-5.1 / ISO 10628 Standard Equipment &amp; Symbology" class="diagram" fill="none">
+    <g id="plant-isa" class="representation-group">
+      <g class="representationtypegroup">
+        <polyline points="50.0,-60.0 85.0,-60.0 85.0,-130.0 50.0,-130.0 50.0,-60.0" fill="none" stroke="rgb(220,220,220)" stroke-width="2.0" vector-effect="non-scaling-stroke" />
+        <polyline points="50.0,-60.0 67.0,-48.0 85.0,-60.0" fill="none" stroke="rgb(220,220,220)" stroke-width="2.0" vector-effect="non-scaling-stroke" />
+        <polyline points="50.0,-130.0 67.0,-142.0 85.0,-130.0" fill="none" stroke="rgb(220,220,220)" stroke-width="2.0" vector-effect="non-scaling-stroke" />
+        <polyline points="50.0,-170.0 85.0,-170.0 85.0,-220.0 50.0,-220.0 50.0,-170.0" fill="none" stroke="rgb(220,220,220)" stroke-width="2.0" vector-effect="non-scaling-stroke" />
+        <polyline points="67.0,-150.0 67.0,-200.0" fill="none" stroke="rgb(220,220,220)" stroke-width="2.0" vector-effect="non-scaling-stroke" />
+        <polyline points="58.0,-200.0 76.0,-200.0" fill="none" stroke="rgb(220,220,220)" stroke-width="2.0" vector-effect="non-scaling-stroke" />
+        <polyline points="50.0,-260.0 85.0,-260.0 85.0,-360.0 50.0,-360.0 50.0,-260.0" fill="none" stroke="rgb(220,220,220)" stroke-width="2.0" vector-effect="non-scaling-stroke" />
+        <polyline points="55.0,-285.0 80.0,-285.0" fill="none" stroke="rgb(115,115,115)" stroke-width="1.2" vector-effect="non-scaling-stroke" />
+        <polyline points="55.0,-310.0 80.0,-310.0" fill="none" stroke="rgb(115,115,115)" stroke-width="1.2" vector-effect="non-scaling-stroke" />
+        <polyline points="55.0,-335.0 80.0,-335.0" fill="none" stroke="rgb(115,115,115)" stroke-width="1.2" vector-effect="non-scaling-stroke" />
+        <polyline points="230.0,-60.0 265.0,-60.0 265.0,-145.0 230.0,-145.0 230.0,-60.0" fill="none" stroke="rgb(220,220,220)" stroke-width="2.0" vector-effect="non-scaling-stroke" />
+        <polyline points="230.0,-60.0 265.0,-105.0" fill="none" stroke="rgb(115,115,115)" stroke-width="1.2" vector-effect="non-scaling-stroke" />
+        <polyline points="265.0,-60.0 230.0,-105.0" fill="none" stroke="rgb(115,115,115)" stroke-width="1.2" vector-effect="non-scaling-stroke" />
+        <polyline points="230.0,-180.0 268.0,-180.0 268.0,-260.0 230.0,-260.0 230.0,-180.0" fill="none" stroke="rgb(220,220,220)" stroke-width="2.0" vector-effect="non-scaling-stroke" />
+        <polyline points="232.0,-205.0 266.0,-205.0" fill="none" stroke="rgb(56,189,248)" stroke-width="2.5" vector-effect="non-scaling-stroke" />
+        <polyline points="430.0,-75.0 445.0,-60.0 455.0,-60.0 470.0,-75.0 470.0,-120.0 430.0,-120.0 430.0,-75.0" fill="none" stroke="rgb(220,220,220)" stroke-width="2.0" vector-effect="non-scaling-stroke" />
+        <polyline points="630.0,-70.0 680.0,-70.0 680.0,-110.0 630.0,-110.0 630.0,-70.0" fill="none" stroke="rgb(220,220,220)" stroke-width="2.0" vector-effect="non-scaling-stroke" />
+        <polyline points="630.0,-80.0 680.0,-80.0" fill="none" stroke="rgb(245,158,11)" stroke-width="1.5" vector-effect="non-scaling-stroke" />
+        <polyline points="630.0,-180.0 655.0,-160.0 680.0,-180.0" fill="none" stroke="rgb(220,220,220)" stroke-width="2.0" vector-effect="non-scaling-stroke" />
+        <polyline points="630.0,-180.0 680.0,-180.0 680.0,-220.0 630.0,-220.0 630.0,-180.0" fill="none" stroke="rgb(220,220,220)" stroke-width="2.0" vector-effect="non-scaling-stroke" />
+      </g>
+    </g>
+  </g>
+</svg>

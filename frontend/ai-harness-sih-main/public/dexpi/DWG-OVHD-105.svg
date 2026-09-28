@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="880.0" height="600.0" viewBox="-40.0 -560.0 880.0 600.0">
+  <metadata>DEXPI Diagram: Crude Overhead Condenser &amp; Naphtha Stabilizer</metadata>
+  <g id="diagram-Crude Overhead Condenser &amp; Naphtha Stabilizer" class="diagram" fill="none">
+    <g id="plant-ovhd105" class="representation-group">
+      <g class="representationtypegroup">
+        <polyline points="120.0,-140.0 280.0,-140.0 280.0,-240.0 120.0,-240.0 120.0,-140.0" fill="none" stroke="rgb(220,220,220)" stroke-width="2.0" vector-effect="non-scaling-stroke" />
+        <ellipse cx="165.0" cy="-190.0" rx="18.0" ry="18.0" fill="none" stroke="rgb(115,115,115)" stroke-width="1.2" vector-effect="non-scaling-stroke" />
+        <ellipse cx="235.0" cy="-190.0" rx="18.0" ry="18.0" fill="none" stroke="rgb(115,115,115)" stroke-width="1.2" vector-effect="non-scaling-stroke" />
+        <polyline points="360.0,-240.0 520.0,-240.0 520.0,-340.0 360.0,-340.0 360.0,-240.0" fill="none" stroke="rgb(220,220,220)" stroke-width="2.0" vector-effect="non-scaling-stroke" />
+        <polyline points="360.0,-240.0 340.0,-290.0 360.0,-340.0" fill="none" stroke="rgb(220,220,220)" stroke-width="2.0" vector-effect="non-scaling-stroke" />
+        <polyline points="520.0,-240.0 540.0,-290.0 520.0,-340.0" fill="none" stroke="rgb(220,220,220)" stroke-width="2.0" vector-effect="non-scaling-stroke" />
+        <polyline points="475.0,-340.0 475.0,-380.0 510.0,-380.0 510.0,-340.0" fill="none" stroke="rgb(220,220,220)" stroke-width="2.0" vector-effect="non-scaling-stroke" />
+        <polygon points="495.0,-120.0 515.0,-130.0 495.0,-140.0" fill="none" stroke="rgb(220,220,220)" stroke-width="2.0" vector-effect="non-scaling-stroke" />
+        <polygon points="515.0,-130.0 535.0,-120.0 535.0,-140.0" fill="none" stroke="rgb(220,220,220)" stroke-width="2.0" vector-effect="non-scaling-stroke" />
+        <ellipse cx="640.0" cy="-440.0" rx="20.0" ry="20.0" fill="none" stroke="rgb(220,220,220)" stroke-width="2.0" vector-effect="non-scaling-stroke" />
+        <ellipse cx="780.0" cy="-500.0" rx="20.0" ry="20.0" fill="none" stroke="rgb(220,220,220)" stroke-width="2.0" vector-effect="non-scaling-stroke" />
+        <polyline points="20.0,-190.0 120.0,-190.0" fill="none" stroke="rgb(56,189,248)" stroke-width="2.5" vector-effect="non-scaling-stroke" />
+        <polyline points="280.0,-190.0 420.0,-190.0 420.0,-240.0" fill="none" stroke="rgb(56,189,248)" stroke-width="2.5" vector-effect="non-scaling-stroke" />
+        <polyline points="450.0,-240.0 450.0,-130.0 495.0,-130.0" fill="none" stroke="rgb(245,158,11)" stroke-width="1.5" vector-effect="non-scaling-stroke" />
+        <polyline points="490.0,-340.0 490.0,-440.0 620.0,-440.0" fill="none" stroke="rgb(16,185,129)" stroke-width="2.5" vector-effect="non-scaling-stroke" />
+        <polyline points="550.0,-440.0 550.0,-500.0 760.0,-500.0" fill="none" stroke="rgb(16,185,129)" stroke-width="2.5" vector-effect="non-scaling-stroke" />
+      </g>
+    </g>
+  </g>
+</svg>

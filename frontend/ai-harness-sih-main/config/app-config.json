@@ -1,0 +1,176 @@
+{
+  "project": {
+    "name": "Indigent",
+    "codename": "ai-harness",
+    "version": "1.0.0",
+    "tagline": "Industrial AI Assistant",
+    "description": "On-premise AI assistant for engineering workflows, document verification, and plant analysis.",
+    "theme": "Clean & Minimalist Industrial Workspace",
+    "problemStatement": "SIH 2026 · PS 26117",
+    "organization": "MRPL"
+  },
+  "branding": {
+    "logoText": "Indigent",
+    "badgeText": "Local Engine",
+    "footerText": "Indigent AI · Local on-premise execution",
+    "connectedStatus": "Air-Gapped Local Backend Connected",
+    "offlineStatus": "Standalone Demo Mode"
+  },
+  "navigation": {
+    "items": [
+      {
+        "id": "workbench",
+        "label": "Workspace",
+        "description": "Assistant chat and task review"
+      },
+      {
+        "id": "documents",
+        "label": "Documents",
+        "description": "Uploaded files and generated deliverables"
+      },
+      {
+        "id": "knowledge",
+        "label": "Guidelines",
+        "description": "Standard operating procedures and manuals"
+      },
+      {
+        "id": "pid_viewer",
+        "label": "Diagrams",
+        "description": "Plant layouts and P&ID diagrams"
+      },
+      {
+        "id": "models",
+        "label": "Models",
+        "description": "Active local AI models and routing"
+      },
+      {
+        "id": "audit",
+        "label": "Audit Log",
+        "description": "Activity history and verification logs"
+      }
+    ]
+  },
+  "sovereignty": {
+    "statusAirGapped": "Local Air-Gapped",
+    "statusOnline": "Connected",
+    "statusDegraded": "Protected",
+    "statusViolated": "Air-Gap Violated",
+    "internetBlockedLabel": "Blocked",
+    "internetAllowedLabel": "Allowed",
+    "labels": {
+      "airGappedStatus": "Network Status",
+      "internetAccess": "Internet Access",
+      "externalApiCalls": "External Calls",
+      "externalDnsQueries": "DNS Queries",
+      "externalConnections": "Connections",
+      "localRequests": "Local Tasks",
+      "deniedAttempts": "Blocked Egress Packets",
+      "bytesOut": "Bytes Outbound",
+      "bytesIn": "Bytes Inbound"
+    }
+  },
+  "approvalGate": {
+    "title": "Review & Approval",
+    "subtitle": "Review the analysis and recommendations before finalizing deliverables.",
+    "buttons": {
+      "approve": "Approve & Sign",
+      "modify": "Request Adjustment",
+      "reject": "Decline"
+    },
+    "labels": {
+      "recommendation": "Recommendation",
+      "readyFiles": "Ready files",
+      "signerRole": "Signer"
+    }
+  },
+  "contextTabs": {
+    "files": "Files",
+    "sources": "Guidelines",
+    "artifacts": "Documents",
+    "pid": "Diagram"
+  },
+  "documents": {
+    "title": "Documents & Files",
+    "subtitle": "Uploaded inspection scans and generated deliverables.",
+    "uploadButton": "Upload Document",
+    "searchPlaceholder": "Search documents...",
+    "table": {
+      "name": "Name",
+      "type": "Type",
+      "category": "Category",
+      "size": "Size",
+      "status": "Status",
+      "action": "Action",
+      "download": "Download"
+    }
+  },
+  "knowledge": {
+    "title": "Guidelines & Manuals",
+    "subtitle": "Operating procedures and manuals indexed for verification and safety compliance.",
+    "addButton": "Add Guideline",
+    "cards": {
+      "rules": "Indexed Rules",
+      "matching": "Citation Matching",
+      "storage": "Index Storage"
+    },
+    "activeTitle": "Active Manuals"
+  },
+  "models": {
+    "title": "AI Models & Engines",
+    "tier": "70B–120B Local Tier",
+    "subtitle": "Air-gapped frontier model registry for deterministic industrial reasoning and sandboxed execution.",
+    "addButton": "Add Model",
+    "activeEngine": "Active Inference Engine",
+    "memoryFootprint": "Memory Footprint",
+    "localArchitecture": "Local Architecture",
+    "searchPlaceholder": "Search model, parameter, or task..."
+  },
+  "audit": {
+    "title": "Audit & Security Log",
+    "subtitle": "Immutable log of state transitions, rule evaluations, and network actions.",
+    "exportButton": "Export JSONL",
+    "table": {
+      "time": "Time",
+      "action": "Action",
+      "module": "Module",
+      "status": "Status",
+      "details": "Details"
+    }
+  },
+  "pid": {
+    "title": "Piping & Instrumentation Diagrams (P&ID Explorer)",
+    "subtitle": "Interactive plant CAD drawings, ISA-5.1 symbology taxonomy, and process connectivity graphs.",
+    "exportButton": "Export Graph JSON",
+    "uploadButton": "Analyze Custom Drawing"
+  },
+  "workbench": {
+    "welcomeTitle": "Industrial AI Assistant",
+    "welcomeSubtitle": "Air-gapped on-premise intelligence for document analysis, safety calculations, and plant engineering.",
+    "inputPlaceholder": "Ask a question, upload a report, or request adjustments...",
+    "responseCardTitle": "Assistant Response",
+    "generatingResponse": "Processing request & generating response...",
+    "quickStartersTitle": "Quick Actions",
+    "quickStarters": [
+      {
+        "title": "Pipe Thickness Verification",
+        "description": "Inspect UT thickness readings against safety SOP retirement limits.",
+        "prompt": "Inspect ultrasonic wall thickness readings for Crude Overhead Line L-2041 against SOP-ENG-042 standards and generate approval deliverables."
+      },
+      {
+        "title": "Engineering Calculation Check",
+        "description": "Run sandboxed arithmetic verification and auto-repair logic.",
+        "prompt": "Verify the natural gas orifice flow rate calculation with boundary error checking and sandbox code validation."
+      },
+      {
+        "title": "Egress Firewall Proof",
+        "description": "Trigger egress shield test to verify zero external data leaks.",
+        "prompt": "Test air-gapped network egress security by simulating an unauthorized outbound connection attempt."
+      },
+      {
+        "title": "P&ID Schematic Extraction",
+        "description": "Trace equipment connectivity and ISA-5.1 tags for Distillation Unit.",
+        "prompt": "Analyze Distillation Column C-101 P&ID drawing and extract all valves, pumps, and process line connections."
+      }
+    ]
+  }
+}

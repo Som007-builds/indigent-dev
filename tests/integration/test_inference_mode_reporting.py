@@ -81,11 +81,17 @@ def test_stub_models_status_reads_settings_rather_than_a_literal(mode: str) -> N
 
 
 def test_stub_models_status_keeps_the_documented_response_shape() -> None:
-    """Fixing the mode must not quietly drop or rename contract fields."""
+    """Fixing the mode must not quietly drop or rename contract fields.
+
+    ``active_model_id`` was added deliberately (Frontend-fix.md item 2.4): the frontend
+    reads it from ``GET /api/models`` to know which model is selected, and previously
+    the value set via ``POST /api/models/active`` was acknowledged but never returned.
+    """
     body = StubModelsStatus(Settings()).status()
     assert set(body) == {
         "active_inference_mode",
         "hardware_profile",
+        "active_model_id",
         "models",
         "resident_models",
         "resources",
@@ -96,3 +102,55 @@ def test_stub_models_status_keeps_the_documented_response_shape() -> None:
         "disk_mb_free",
         "max_concurrency",
     }
+
+
+def test_stub_models_status_reports_no_active_model_before_any_selection() -> None:
+    """A key that is absent is indistinguishable from a selection that was dropped.
+
+    The stub must emit ``active_model_id: null`` rather than omitting the key, so the
+    frontend can tell "nothing selected yet" from "this build does not report it".
+    """
+    body = StubModelsStatus(Settings()).status()
+    assert "active_model_id" in body
+    assert body["active_model_id"] is None
+
+
+def test_stub_models_status_round_trips_a_selection() -> None:
+    """POST /api/models/active must be observable on the next GET /api/models."""
+    stub = StubModelsStatus(Settings())
+    assert stub.status()["active_model_id"] is None
+
+    stub.set_active_model("some-local-model")
+
+    body = stub.status()
+    assert body["active_model_id"] == "some-local-model"
+    # Recording a selection is not a claim that anything is loaded: the stub has no
+    # registry, so it must still report zero models and nothing resident.
+    assert body["models"] == []
+    assert body["resident_models"] == []
+
+
+def test_model_selection_round_trips_through_the_api(tmp_path) -> None:
+    """The switcher must survive a reload (Frontend-fix.md item 2.4)."""
+    with _client(tmp_path, "local") as client:
+        assert client.get("/api/models").json()["active_model_id"] is None
+
+        ok = client.post("/api/models/active", json={"model_id": "local-model-a"})
+        assert ok.status_code == 200
+        assert ok.json()["active_model_id"] == "local-model-a"
+
+        assert client.get("/api/models").json()["active_model_id"] == "local-model-a"
+
+
+def test_registration_that_cannot_be_stored_is_reported_as_such(tmp_path) -> None:
+    """A discarded write must never be acknowledged as stored.
+
+    ``StubModelsStatus`` has no registry, so ``POST /api/models`` cannot honour the
+    registration. It used to return ``{"status": "ok"}`` anyway, which the frontend
+    rendered as a successful registration (Frontend-fix.md item 1.12).
+    """
+    with _client(tmp_path, "local") as client:
+        res = client.post("/api/models", json={"id": "x", "name": "Some Model"})
+
+    assert res.status_code == 501
+    assert res.json()["error"]["code"] == "MODEL_REGISTRY_UNSUPPORTED"

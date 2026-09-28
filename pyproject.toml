@@ -36,6 +36,11 @@ pythonpath = ["."]
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+# `frontend/` is an untracked Next.js app that vendors third-party tooling under
+# `.agents/skills/` (python helper scripts that are not ours and not linted to our
+# standard). Excluding it keeps the documented `ruff check .` gate meaningful instead
+# of reporting 26 pre-existing errors in vendored code.
+extend-exclude = ["frontend"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B"]
