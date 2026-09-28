@@ -487,11 +487,11 @@ Every row in the table previously displayed the literal string **"Orchestrator"*
 
 | # | Task | Where | Status |
 |---|---|---|---|
-| 3.1 | `TaskType` includes `'general'` and `'sovereignty_proof'`, absent from the G7 enum (`inspection`, `coding`, `pid_analysis`). Remove them and drop the `as any` cast at `workbench-context.tsx:229`. | `types/workbench.ts` | ⬜ |
-| 3.2 | `fileSizeFormatted: "Validated deliverable"` — a string in a size field, set twice (`workbench-context.tsx:219`, `:530`). The backend has real sizes; use them or omit. | `lib/workbench-context.tsx` | ⬜ |
-| 3.3 | `CORS_ORIGINS` defaults to `http://localhost:5173`; this app dev-serves on **:3000**. Currently masked by the same-origin rewrite, breaks the moment anyone points the browser straight at the backend. Add `:3000` or document why not. | `app/config.py` | ⬜ |
-| 3.4 | No `.env.example` documenting `BACKEND_URL`. Add one next to the existing root `.env.example`. | `frontend/ai-harness-sih-main/` | ⬜ |
-| 3.5 | `getArtifactDownloadUrl` returns a relative URL; fine behind the proxy, breaks under a direct backend origin. Confirm intent and comment it. | `lib/api-client.ts:215` | ⬜ |
+| 3.1 | `TaskType` includes `'general'` and `'sovereignty_proof'`, absent from the G7 enum (`inspection`, `coding`, `pid_analysis`). Remove them and drop the `as any` cast at `workbench-context.tsx:229`. | `types/workbench.ts` | ✅ Narrowed to the three G7 types; `TaskState.taskType` is `TaskType \| null` via `asTaskType` (used at loadTask, state_changed, newTask); the `as any` cast dropped. `mock-data.ts` (provably dead) kept at owner's instruction — `taskType: null` with banner. `FRONTEND_DOC.md` §5 spec corrected to match. |
+| 3.2 | `fileSizeFormatted: "Validated deliverable"` — a string in a size field, set twice (`workbench-context.tsx:219`, `:530`). The backend has real sizes; use them or omit. | `lib/workbench-context.tsx` | ✅ **Premise corrected:** the backend had **no** artifact size anywhere (G8 `ArtifactManifest` has no size field; G10 `artifacts` table has no column) — that is why the UI fabricated one. Added `size_bytes` additively via `annotate_size()` (on-disk stat; `None` = not reported, never `0`) on `GET /api/tasks/{id}` and `GET /api/artifacts/{id}`. UI: `formatBytes` in new `lib/format.ts`, mapped in `mapManifests`. Live-verified: 36591 reported = on-disk = download length. 12 tests. |
+| 3.3 | `CORS_ORIGINS` defaults to `http://localhost:5173`; this app dev-serves on **:3000**. Currently masked by the same-origin rewrite, breaks the moment anyone points the browser straight at the backend. Add `:3000` or document why not. | `app/config.py` | ✅ Default now `http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000` (both host forms are distinct origins). Deviation from G6 logged in `docs/decisions.md`; `.env.example` updated; middleware admit/refuse tested. |
+| 3.4 | No `.env.example` documenting `BACKEND_URL`. Add one next to the existing root `.env.example`. | `frontend/ai-harness-sih-main/` | ✅ `.env.example` created documenting `BACKEND_URL` (server-only, deliberately **not** `NEXT_PUBLIC_`, so the backend address never reaches a client bundle). |
+| 3.5 | `getArtifactDownloadUrl` returns a relative URL; fine behind the proxy, breaks under a direct backend origin. Confirm intent and comment it. | `lib/api-client.ts:215` | ✅ Intent confirmed by design: `API_BASE = ""` is deliberate (same-origin through the Next proxy; backend origin lives only in the server-only `lib/backend-origin.ts`, read from `BACKEND_URL`). Both `API_BASE` and `getArtifactDownloadUrl` commented to that effect. |
 
 ---
 
@@ -499,11 +499,11 @@ Every row in the table previously displayed the literal string **"Orchestrator"*
 
 | # | Task | Where | Status |
 |---|---|---|---|
-| 4.1 | `shadcn: ^4.19.0` is a **CLI** sitting in `dependencies`. Move to `devDependencies` — it currently installs into the client dependency path. | `package.json:25` | ⬜ |
-| 4.2 | Three icon libraries installed: `@hugeicons/core-free-icons`, `@hugeicons/react`, `lucide-react`. Pick one. | `package.json` | ⬜ |
-| 4.3 | The bundled `AGENTS.md` points at dead absolute Linux paths (`file:///home/johan/Hackathons/SIH2026/ai-harness/…`) and at `../AGENTS.md` / `../DOCS/`, none of which exist in this repo. Rewrite the links as repo-relative. | `frontend/ai-harness-sih-main/AGENTS.md` | ⬜ |
-| 4.4 | `.agents/skills/**` (AI agent instruction files, ~30 files) ship inside the product folder. Confirm they belong in the repo and not in a build artifact. | `frontend/ai-harness-sih-main/.agents/` | ⬜ |
-| 4.5 | `FRONTEND_DOC.md:274,281` lists "Mock API & SSE Provider" as step 1 and "Real Backend Integration" as step 8. The build shipped real calls but kept the mock fallbacks — that inconsistency is the root cause of most of Phase 1. Update the phase status to reflect reality. | `FRONTEND_DOC.md` | ⬜ |
+| 4.1 | `shadcn: ^4.19.0` is a **CLI** sitting in `dependencies`. Move to `devDependencies` — it currently installs into the client dependency path. | `package.json:25` | ✅ Moved to `devDependencies`. `pnpm install` clean. |
+| 4.2 | Three icon libraries installed: `@hugeicons/core-free-icons`, `@hugeicons/react`, `lucide-react`. Pick one. | `package.json` | ✅ Measured first: lucide-react in **16** files (every page + workbench component), hugeicons in **4** — all shadcn-generated `components/ui/` primitives. Kept lucide-react; swapped the 4 primitives (accordion ChevronDown/Up, dialog X, dropdown-menu Check/ChevronRight, sheet X) with export names verified against the installed d.ts; removed both hugeicons packages. |
+| 4.3 | The bundled `AGENTS.md` points at dead absolute Linux paths (`file:///home/johan/Hackathons/SIH2026/ai-harness/…`) and at `../AGENTS.md` / `../DOCS/`, none of which exist in this repo. Rewrite the links as repo-relative. | `frontend/ai-harness-sih-main/AGENTS.md` | ✅ Links rewritten repo-relative and only at files that exist (`../../AGENTS.md`, `FRONTEND_DOC.md`, `DESIGN.md`, `docs/api-contract.md`, `docs/decisions.md`, `docs/network-lockdown.md`, `../Frontend-fix.md`, `build.prd.md`). Dead `../DOCS/` targets removed with an explanation. |
+| 4.4 | `.agents/skills/**` (AI agent instruction files, ~30 files) ship inside the product folder. Confirm they belong in the repo and not in a build artifact. | `frontend/ai-harness-sih-main/.agents/` | ⚠️ **Reported, left in place.** 85 files / 3.5 MB of vendored third-party tooling (shadcn + ui-ux-pro-max; incl. 15 `.py`). Two skills are reproducible (`skills-lock.json` records upstream source + computed hash). Recommendation: they are agent tooling, not product code; keep them out of the shipped frontend folder or remove once re-fetchable. Owner's call — moving 3.5 MB is structural. |
+| 4.5 | `FRONTEND_DOC.md:274,281` lists "Mock API & SSE Provider" as step 1 and "Real Backend Integration" as step 8. The build shipped real calls but kept the mock fallbacks — that inconsistency is the root cause of most of Phase 1. Update the phase status to reflect reality. | `FRONTEND_DOC.md` | ✅ §8 rewritten: backend-first build order, no mock layer, no mock toggle; SSE via `fetch` + `ReadableStream` (not `EventSource` — it cannot send `Last-Event-Id` on the initial connection) with a note never to restore a buffering `rewrites()` entry. §5 spec updated (TaskType trio, `taskType: TaskType \| null`). §9 split into "verified live" vs "needs a person in a browser". |
 
 ---
 
@@ -513,18 +513,20 @@ Nothing in Phases 1–4 can be proven correct without a running stack. `node_mod
 
 | # | Task | Command | Status |
 |---|---|---|---|
-| 5.1 | Install dependencies | `pnpm install` | ⬜ |
-| 5.2 | Type check | `pnpm typecheck` | ⬜ |
-| 5.3 | Lint | `pnpm lint` | ⬜ |
-| 5.4 | Production build | `pnpm build` | ⬜ |
-| 5.5 | Boot backend + frontend, confirm the proxy resolves | `uvicorn app.main:app --host 127.0.0.1 --port 8000` then `pnpm dev` | ⬜ |
+| 5.1 | Install dependencies | `pnpm install` | ✅ Done. |
+| 5.2 | Type check | `pnpm typecheck` | ✅ Clean (after fixing `mock-data.ts` per owner decision). |
+| 5.3 | Lint | `pnpm lint` | ✅ 12 pre-existing errors (down from 15; 3 fixed in this work) — all in files outside the remediation's touched set. No new problems in Phase 3–4 files (`components/ui/*` lint-clean). |
+| 5.4 | Production build | `pnpm build` | ✅ Compiled + 9 static pages + `ƒ /api/[...path]` registered. |
+| 5.5 | Boot backend + frontend, confirm the proxy resolves | `uvicorn app.main:app --host 127.0.0.1 --port 8000` then `pnpm dev` | ✅ Booted stub backend + Next dev; `/healthz` resolves through the proxy (200). Both shut down after. |
 
 **Then verify live — these four cannot be proven statically:**
 
-1. **SSE survives the Next.js rewrite proxy.** `next.config.ts` proxies `/api/:path*`, and `POST /api/chat` returns `text/event-stream`. Confirm events actually arrive incrementally rather than being buffered until the stream closes. If buffered, the rewrite must be replaced with a route handler.
-2. **The `X-Task-Id` response header survives the proxy.** `api-client.ts:271` depends on it; if the proxy drops it, `onTaskId` never fires and the frontend keeps its temporary `task-${Date.now()}` id.
-3. **SSE frame `id` values increment** so `Last-Event-ID` resume (2.1) can work.
-4. **Upload → render round-trip** for a real `.pdf` and a real P&ID image, with a stub orchestrator.
+| Live check | Result |
+|---|---|
+| 1. **SSE survives the Next.js rewrite proxy.** `next.config.ts` proxies `/api/:path*`, and `POST /api/chat` returns `text/event-stream`. Confirm events actually arrive incrementally rather than being buffered until the stream closes. If buffered, the rewrite must be replaced with a route handler. | ✅ **Measured:** 13 chunks arriving incrementally 0.75s → 2.22s after the 200, keep-alive at 15.72s, 3305 bytes total, `Transfer-Encoding: chunked`, `text/event-stream; charset=utf-8`. (The route handler from 1.14 replaced the rewrite; see `docs/decisions.md`.) |
+| 2. **The `X-Task-Id` response header survives the proxy.** `api-client.ts:271` depends on it; if the proxy drops it, `onTaskId` never fires and the frontend keeps its temporary `task-${Date.now()}` id. | ✅ `X-Task-Id: 6f661cc5-…` observed on the proxied response; `X-Inference-Mode: local` present too. |
+| 3. **SSE frame `id` values increment** so `Last-Event-ID` resume (2.1) can work. | ✅ 13 strictly-incrementing ids (488–500 in one run; 449–452 in another). |
+| 4. **Upload → render round-trip** for a real `.pdf` and a real P&ID image, with a stub orchestrator. | ✅ Real 676-byte one-page PDF: upload → verify sha256/size → download back byte-for-byte through the proxy via `download_url ?download=1` (plain GET returns metadata — the contract). Real P&ID PNG: `POST /api/pid/analyze` returns all graph keys, names artifact_ids; stub honestly returns `nodes=[]`/`edges=[]` rather than inventing a schematic (Plan "Do not fabricate"). Artifact `size_bytes` live-verified: reported = on-disk = download length (36591). 15/15 probe checks passed. |
 
 ---
 
@@ -532,9 +534,9 @@ Nothing in Phases 1–4 can be proven correct without a running stack. `node_mod
 
 | # | Task | Where | Status |
 |---|---|---|---|
-| 6.1 | Record the "never display an unsent value" rule in the root `AGENTS.md` and in `docs/decisions.md`, so this class of defect does not return | `AGENTS.md`, `docs/decisions.md` | ⬜ |
-| 6.2 | Note in `docs/contract-mismatches.md` the frontend-side contract drift found here (audit `actor`, `isResident` vs `resident`, `overlay_image_path` vs a servable URL, missing `GET /api/files/{id}`, missing `active_model_id`) | `docs/contract-mismatches.md` | ⬜ |
-| 6.3 | Update `Progress.md` Step 3, which currently records frontend contract reconciliation as complete | `Progress.md` | ⬜ |
+| 6.1 | Record the "never display an unsent value" rule in the root `AGENTS.md` and in `docs/decisions.md`, so this class of defect does not return | `AGENTS.md`, `docs/decisions.md` | ✅ Root `AGENTS.md` gains **G13 Data honesty**; the frontend rulebook gains §5 with the worked examples; recorded in `docs/decisions.md` 2026-09-28. |
+| 6.2 | Note in `docs/contract-mismatches.md` the frontend-side contract drift found here (audit `actor`, `isResident` vs `resident`, `overlay_image_path` vs a servable URL, missing `GET /api/files/{id}`, missing `active_model_id`) | `docs/contract-mismatches.md` | ✅ File created (previously listed in G5 but did not exist). 8 mismatches with status: 6 closed, 1 `joy` (`active_model_id` real impl), 1 open (`overlay_image_path` unservable — needs Joy's real pipeline). |
+| 6.3 | Update `Progress.md` Step 3, which currently records frontend contract reconciliation as complete | `Progress.md` | ✅ Step 3 corrected to ⚠️ with the real status (reconciliation missed 8 mismatches, now ledgered); changelog entry added 2026-09-28. |
 
 ---
 

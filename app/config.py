@@ -86,7 +86,23 @@ class Settings(BaseSettings):
     resource_max_concurrency: int = Field(default=1, ge=1)
     api_host: str = "127.0.0.1"
     api_port: int = 8000
-    cors_origins: str = "http://localhost:5173"
+    # G6 recorded `http://localhost:5173` as the default, which is Vite's port. The
+    # frontend in this repo is Next.js and serves on 3000, so 5173 was never an origin
+    # this application is actually served from.
+    #
+    # Nothing noticed, because the browser only ever requests same-origin `/api/...`
+    # and `app/api/[...path]/route.ts` forwards to the backend server-side -- CORS is
+    # not exercised on that path at all. It becomes load-bearing the moment anyone
+    # points a browser straight at 8000, or runs a second dev server on another port.
+    # Both localhost and 127.0.0.1 are listed because they are distinct origins to a
+    # browser, and a dev server answers on whichever one the operator typed.
+    #
+    # Not a sovereignty concern: the backend binds 127.0.0.1 only (G3), so none of
+    # these origins is reachable from off the machine.
+    cors_origins: str = (
+        "http://localhost:5173,http://127.0.0.1:5173,"
+        "http://localhost:3000,http://127.0.0.1:3000"
+    )
     data_dir: Path = Path("./data")
     ollama_base_url: str = "http://localhost:11434"
     qdrant_url: str = "http://localhost:6333"

@@ -1,4 +1,14 @@
-export type TaskType = 'inspection' | 'coding' | 'pid_analysis' | 'general' | 'sovereignty_proof'
+/**
+ * Task types, exactly the three G7 enumerates.
+ *
+ * `'general'` and `'sovereignty_proof'` used to be members here. Neither is a type the
+ * backend can report: G7 lists `inspection`, `coding`, `pid_analysis`, and the
+ * orchestrator assigns one during CLASSIFY. Both were placeholders standing in for
+ * "not classified yet" -- which is a null, not a fourth and fifth kind of task. So
+ * `TaskState.taskType` is nullable, and `null` means precisely what `null` means in the
+ * `tasks` table: the orchestrator has not classified this task yet.
+ */
+export type TaskType = 'inspection' | 'coding' | 'pid_analysis'
 
 export type AgentState = 
   | 'INTAKE' 
@@ -65,7 +75,24 @@ export interface SOPCitation {
 export interface ArtifactDeliverable {
   id: string
   filename: string
-  fileType: 'docx' | 'xlsx' | 'pptx' | 'py' | 'json' | 'pdf'
+  /**
+   * Mirrors the backend's `artifact_type` enum (G8) rather than a narrower UI list.
+   *
+   * `code_package` and `pid_overlay` are real artifact types the backend emits. They
+   * were previously forced through an `as` cast into a union that did not contain
+   * them, so any comparison against `'code_package'` was a type error and the value
+   * only ever reached the DOM by being cast. All three consumers fall back safely.
+   */
+  fileType: 'docx' | 'xlsx' | 'pptx' | 'py' | 'json' | 'pdf' | 'code_package' | 'pid_overlay'
+  /**
+   * Human-readable size, formatted from the backend's real `size_bytes`.
+   *
+   * This field previously held the literal string "Validated deliverable" at both
+   * construction sites -- a description of the artifact's *validity* sitting in a field
+   * the UI renders as its size (Frontend-fix.md 3.2). It is now either a real formatted
+   * size or `NOT_REPORTED_SIZE`, never a description. Kept as a preformatted string
+   * because it is display text; the bytes live on `BackendArtifactItem.size_bytes`.
+   */
   fileSizeFormatted: string
   downloadUrl: string
   validationStatus: 'validated' | 'warning' | 'error'
@@ -180,7 +207,11 @@ export interface TaskState {
   scenarioKey?: 'inspection_report' | 'sandbox_repair' | 'sovereignty_proof' | 'pid_analysis'
   scenarioTitle?: string
   userPrompt: string
-  taskType: TaskType
+  /**
+   * Null until the orchestrator's CLASSIFY step assigns one, and null again for any
+   * task it never reached. Not defaulted to a placeholder -- see `TaskType`.
+   */
+  taskType: TaskType | null
   currentState: AgentState
   routing: RoutingReceipt
   steps: AgentStep[]
@@ -264,6 +295,15 @@ export interface BackendArtifactItem {
   verification_status: 'pending' | 'passed' | 'failed'
   metadata: Record<string, unknown>
   download_url?: string
+  /**
+   * Real on-disk size, added additively by `annotate_size` (`app/core/artifacts.py`).
+   *
+   * No artifact size was ever persisted -- the `artifacts` table has no size column and
+   * `ArtifactManifest` (G8) has no size field -- so the UI had nothing real to show and
+   * rendered the string "Validated deliverable" in a size field (Frontend-fix.md 3.2).
+   * Null when the file is missing: absent means not reported, which is not zero bytes.
+   */
+  size_bytes?: number | null
 }
 
 export interface BackendTaskResponse {

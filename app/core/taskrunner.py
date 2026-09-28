@@ -73,7 +73,17 @@ class TaskRunner:
         log_token = log_task_id.set(task_id)
         ctx = TaskContext(
             task_id=task_id,
-            task_type="inspection",
+            # G7: "task_type set by orchestrator CLASSIFY; before that null". It used to
+            # be hardcoded to "inspection" here, which pre-empted CLASSIFY and, worse,
+            # silently mis-assigned the tool allow-list: `ALLOWED_TOOLS["inspection"]`
+            # was applied to every task, so a coding or pid_analysis task would be
+            # validated against the inspection tool set (app/policy/validator.py:30).
+            #
+            # Both orchestrators handle the null correctly. The stub sets
+            # `ctx.task_type = "inspection"` during CLASSIFY (app/stubs/orchestrator.py:46)
+            # and the real one assigns it from the classifier (app/agent/orchestrator.py:320)
+            # before any policy or tool call happens.
+            task_type=None,
             workspace=workspace,
             inference_mode=self.settings.inference_mode,
         )

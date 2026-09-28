@@ -4,6 +4,7 @@ from fastapi import APIRouter, Header
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
+from app.core.artifacts import annotate_size
 from app.core.events import EventBus
 from app.core.repo import Repository
 from app.core.taskrunner import TaskRunner
@@ -60,7 +61,7 @@ def router(runner: TaskRunner, bus: EventBus, repo: Repository) -> APIRouter:
         ):
             if task.get(field) is not None:
                 task[field] = json.loads(task[field])
-        artifacts = await repo.list_artifacts(task_id)
+        artifacts = [annotate_size(row) for row in await repo.list_artifacts(task_id)]
         for artifact in artifacts:
             for field in ("source_evidence_ids", "metadata"):
                 artifact[field] = json.loads(artifact[field])

@@ -18,6 +18,18 @@
  * not be wired into a demo path: a mock toggle is explicitly forbidden in
  * Frontend-fix.md ("Do not do"). Delete this file once the fixtures have served
  * their purpose.
+ *
+ * OWNER DECISION 2026-09-28: keep this file. It is deliberately retained as a
+ * design/demo fixture, so the "do not import" warning above stays -- but it is a
+ * choice, not an oversight, and it is no longer treated as a candidate for deletion
+ * in the Frontend-fix.md cleanup items.
+ *
+ * What this means concretely: every number in this file is invented, and none of it
+ * came from the backend. `taskType` on the fixtures is `TaskType | null` because G7
+ * defines exactly three task types; `scenario3_SovereigntyProof.taskType` was
+ * "sovereignty_proof", which is a `scenarioKey` -- a UI demo-scenario label -- and was
+ * being carried in a field the backend populates. It is null here for the same reason
+ * it is null in `workbench-context.tsx` at INTAKE: not classified.
  */
 
 import { TaskState } from "@/types/workbench"
@@ -257,7 +269,10 @@ export const scenario3_SovereigntyProof: TaskState = {
   scenarioKey: "sovereignty_proof",
   scenarioTitle: "Privacy & Offline Security Verification Test",
   userPrompt: "Demonstrate that no data can ever leave this computer by testing our built-in security shield against an attempted outside connection.",
-  taskType: "sovereignty_proof",
+  // Not a task type. G7 enumerates three (inspection, coding, pid_analysis) and this
+  // fixture never went through CLASSIFY, so the honest value is null. "sovereignty_proof"
+  // is a scenarioKey, one layer up, and does not belong in a task-type field.
+  taskType: null,
   currentState: "COMPLETE",
   requiresApproval: false,
   approvalStatus: "approved",

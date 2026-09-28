@@ -225,3 +225,6 @@ Mode comes from settings.INFERENCE_MODE only.
 G12 Workspace layout
 
 DATA_DIR/workspaces/{task_id}/{inputs,outputs,code}/. inputs/ = copies of task files; outputs/ = generated artifacts; code/ = the ONLY dir mounted into the sandbox (at /work). Standalone uploads: DATA_DIR/uploads/{file_id}/{file_id}.{ext} (stored under uuid, original name kept as metadata only). P&ID: DATA_DIR/pid/{file_id}/.
+
+G13 Data honesty (frontend) — never display a value the backend did not send
+The frontend must render an explicit absence, never a fabricated one. When the backend omits a field, render `null`/optional and guard it away, or the `NOT_REPORTED` marker from `lib/format.ts` — never a placeholder, a sample, a plausible-looking default, or a neighbouring field's value. No mock data and no mock toggle in any shipped path. Examples burned by the 2026-09-27..28 remediation: `taskType` defaulted to `"general"` (a task type the backend cannot produce), a size field rendered the literal string "Validated deliverable", and RoutingReceipts invented model names. Full rule with worked examples: `frontend/ai-harness-sih-main/AGENTS.md` section 5. Recorded in `docs/decisions.md` 2026-09-28.

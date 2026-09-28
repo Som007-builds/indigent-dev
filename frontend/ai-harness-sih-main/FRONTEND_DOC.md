@@ -127,7 +127,11 @@ The workbench follows a **3-Pane Layout + 2 Persistent Global Strips**:
 
 ```typescript
 // Task & Agent State Schema
-export type TaskType = 'inspection' | 'coding' | 'pid_analysis' | 'general';
+//
+// Task types, exactly the three G7 enumerates in the root rulebook. 'general' used to
+// be a fourth member here; the backend can never report it, and it was really standing
+// in for "not classified yet", which is a null. See AGENTS.md section 5.
+export type TaskType = 'inspection' | 'coding' | 'pid_analysis';
 
 export type AgentState = 
   | 'INTAKE' 
@@ -216,7 +220,8 @@ export interface SovereigntyMetrics {
 export interface TaskState {
   taskId: string;
   userPrompt: string;
-  taskType: TaskType;
+  /** Null until the orchestrator's CLASSIFY step assigns one. Never defaulted. */
+  taskType: TaskType | null;
   currentState: AgentState;
   routing: RoutingReceipt;
   steps: AgentStep[];
@@ -270,23 +275,87 @@ We adhere to the dark, technical design tokens specified in `globals.css` with s
 
 ## 8. Frontend Development & Implementation Plan
 
-### Step-by-Step Build Order
-1. **Mock API & SSE Provider:** Create a lightweight mock hook (`useMockSSE`) simulating the 4 flagship workflows without needing the backend running.
-2. **Workbench Layout & Shell:** Assemble the 3-pane layout (`Sidebar`, `ConversationStream`, `ContextPanel`, `SovereigntyHeader`).
-3. **Sovereignty Monitor Strip:** Build the live telemetry widget with pulsing status and blocked packet counters.
-4. **Conversation Stream & Routing Receipt:** Implement the message stream, inline routing badges, and step-by-step accordion cards.
-5. **Human Approval Gate Modal/Banner:** Build the review widget with Approve, Modify, and Reject triggers.
-6. **Artifacts & Citations Tabs:** Build the download cards for `.docx` and `.xlsx` with validation chips.
-7. **P&ID Canvas/SVG Graph Viewer:** Build the interactive drawing overlay renderer with node hover/click inspection.
-8. **Real Backend Integration:** Switch from `useMockSSE` to native `EventSource` connected to the FastAPI endpoints.
+### Build Order (as actually built — revised 2026-09-28)
+
+This section was previously written as "build against a mock SSE provider first, swap to
+the real backend last". That ordering is what produced the defect class this
+remediation exists to fix: a UI written against a mock has no way to notice that the
+backend never sends a field, so every mock value becomes a silent lie in production.
+**The backend is the specification. Build against it from the first line.**
+
+1. **Backend integration first:** real `apiClient` over the same-origin proxy
+   (`app/api/[...path]/route.ts`). No mock layer, and no mock toggle.
+2. **Workbench Layout & Shell:** Assemble the 3-pane layout (`Sidebar`,
+   `ConversationStream`, `ContextPanel`, `SovereigntyHeader`).
+3. **Sovereignty Monitor Strip:** the live telemetry widget, reading
+   `GET /api/monitoring/sovereignty`. Its state comes from the backend's counters —
+   never a hardcoded default.
+4. **Conversation Stream & Routing Receipt:** the message stream, inline routing badges,
+   and the step accordion.
+5. **Human Approval Gate:** the review widget, honouring the backend's response rather
+   than assuming success.
+6. **Artifacts & Citations Tabs:** download cards whose size, hash and verification
+   status come from the manifest.
+7. **P&ID Canvas/SVG Graph Viewer:** the drawing overlay renderer, driven by the graph
+   the backend extracted.
+8. **SSE transport with resume:** streaming via `fetch` + `ReadableStream`, **not**
+   `EventSource`. `EventSource` cannot send a `Last-Event-Id` header on the *initial*
+   connection, so it cannot resume an interrupted task — which is the whole point. The
+   cursor is carried manually and the stream replayed from it
+   (`lib/sse.ts`, `apiClient.resumeStream`).
+
+### Removed from this plan
+- ~~`useMockSSE` mock hook~~ — deleted as a design goal. It is what allowed the UI to
+  render values the backend never sent. `lib/mock-data.ts` survives only as an
+  unimported design fixture with a do-not-import banner.
+- ~~"Switch from `useMockSSE` to native `EventSource`"~~ — superseded by step 8 above.
+  Also note a buffering `rewrites()` entry once proxied `/api` and silently swallowed
+  every SSE response body; the streaming proxy is a route handler, and a rewrite there
+  must not be restored.
 
 ---
 
 ## 9. Verification & Demo Readiness Checklist
 
-- [ ] **Sovereignty Visibility:** Verify Sovereignty Monitor strip remains visible across all navigation tabs.
-- [ ] **Routing Badge:** Verify the badge displays the correct model name and trigger reason for both coding and inspection tasks.
-- [ ] **Model Swap UX:** Ensure a loading badge appears when the router swaps from `qwen3:8b` to `qwen2.5-vl:7b`.
-- [ ] **Approval Gate Action:** Verify that clicking **Approve** sends the payload and advances the task to `COMPLETE`.
-- [ ] **Artifact Download:** Verify clicking `.docx` and `.xlsx` artifacts downloads valid binary files locally.
-- [ ] **P&ID Graph Interaction:** Verify clicking a node on the JSON tree highlights the bounding box on the CAD drawing canvas.
+**Read the two lists separately.** The first is verified against a running stack. The
+second is *not* verified — it needs a human looking at a browser, and conflating the two
+is the same defect as displaying an unverified value.
+
+### Verified (backend + transport, against a live stub stack)
+
+- [x] **SSE actually streams through the frontend proxy.** Measured, not assumed: 16
+      chunks and 13 event ids, first byte at 0.46 s, frames arriving 0.46 s → 1.81 s,
+      keep-alives at 15.4 s / 30.4 s / 45.4 s. Before the proxy fix the same request
+      returned **0 chunks and 0 ids in 40 s** and released the body only at teardown.
+- [x] **Event ids increment and resume works.** A task cut mid-stream replays exactly the
+      tail, identical direct and proxied — no duplicate, no gap. Unknown task id → 404.
+- [x] **`X-Inference-Mode` is observed from real responses**, and agrees with
+      `/api/models` `active_inference_mode` and the sovereignty `inference_mode`.
+- [x] **Sovereignty reports `AIR-GAPPED`** from live counters, not a default.
+- [x] **Artifact download returns exact bytes**, and the manifest now carries a real
+      `size_bytes` that agrees with the downloaded length.
+- [x] **Multipart upload → render round trip**, including the real `sha256`.
+- [x] **Error envelopes** are the backend's own shape through the proxy, and
+      `POST /api/models` correctly reports 501 (no `add_custom_model` in the stub).
+
+### Not verified — requires a person in a browser
+
+- [ ] **Sovereignty Visibility:** confirm the monitor strip stays visible across all
+      navigation tabs.
+- [ ] **Routing Badge:** confirm the badge shows the model name and reason the backend
+      actually sent, for both a coding and an inspection task.
+- [ ] **Model Swap UX:** confirm a loading state appears during a swap. Note this item
+      previously named specific models (`qwen3:8b` → `qwen2.5-vl:7b`); the models that
+      exist are whatever the operator's `MODEL_INVENTORY_JSON` declares, so assert
+      against that, not against names in this document.
+- [ ] **Approval Gate Action:** confirm **Approve** sends the payload and the task
+      advances to `COMPLETE`. **Known caveat:** an `APPROVAL` state parks the SSE stream
+      open indefinitely (correct per G6 — `APPROVAL_TIMEOUT_S=86400`, and
+      `HARD_TASK_TIMEOUT_S` excludes time spent awaiting a human). The client therefore
+      stays in its executing state until approval, which is correct but not yet smoothed
+      over in the UI.
+- [ ] **P&ID Graph Interaction:** confirm clicking a node highlights the corresponding
+      box on the drawing. Note `app/stubs/pid.py` returns `nodes=[]`, `edges=[]` and an
+      `overlay_image_path` that merely echoes the uploaded scan, so the stub cannot
+      demonstrate this at all — it needs Joy's real pipeline.
+

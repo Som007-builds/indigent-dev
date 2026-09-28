@@ -4,6 +4,7 @@ import uuid
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from app.contracts.models import ArtifactManifest, TaskContext
 from app.core.audit import AuditLoggerImpl
@@ -22,6 +23,33 @@ def _sha256(path: Path) -> str:
         while chunk := source.read(1024 * 1024):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def annotate_size(record: dict[str, Any]) -> dict[str, Any]:
+    """Attach the artifact's real on-disk size to a manifest or ``artifacts`` row.
+
+    No artifact size is ever persisted: the ``artifacts`` table (G10) has no size
+    column and ``ArtifactManifest`` (G8) has no size field. The file is on disk though,
+    so the size is knowable at read time -- and because it was not, the frontend had
+    nothing to display and rendered the literal string "Validated deliverable" in a
+    size field (Frontend-fix.md item 3.2).
+
+    ``None`` when the file is missing or unreadable. Absent means *not reported*, which
+    is deliberately not the same as zero: reporting 0 bytes for a file that has been
+    deleted would be a different kind of lie.
+
+    The path comes from our own database rather than from a request, and ``register``
+    already constrained it under the task's ``outputs/``, so stat-ing it is safe. This
+    reads metadata only -- it never opens the file, which is what
+    ``verify_integrity`` and the download route are for.
+    """
+    enriched = dict(record)
+    path = Path(str(record.get("path") or ""))
+    try:
+        enriched["size_bytes"] = path.stat().st_size if path.is_file() else None
+    except OSError:
+        enriched["size_bytes"] = None
+    return enriched
 
 
 class ArtifactStoreImpl:

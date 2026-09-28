@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi import APIRouter
 from fastapi.responses import FileResponse
 
-from app.core.artifacts import ArtifactStoreImpl
+from app.core.artifacts import ArtifactStoreImpl, annotate_size
 from app.errors import AppError
 
 
@@ -18,7 +18,7 @@ def router(store: ArtifactStoreImpl) -> APIRouter:
         if download:
             await store.require_intact(artifact_id)
             return FileResponse(manifest.path, filename=Path(manifest.path).name)
-        response = manifest.model_dump()
+        response = annotate_size(manifest.model_dump())
         response["download_url"] = f"/api/artifacts/{artifact_id}?download=1"
         return response
 

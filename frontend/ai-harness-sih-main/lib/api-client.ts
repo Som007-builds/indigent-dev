@@ -11,6 +11,30 @@ import {
 } from "@/types/workbench"
 import { SseFrameParser, isTerminalEvent } from "@/lib/sse"
 
+/**
+ * Intentionally empty. Every request this client makes is same-origin and relative.
+ *
+ * This is a deliberate air-gap decision, not an oversight and not something to
+ * "fix" by pointing it at `http://127.0.0.1:8000` (Frontend-fix.md item 3.5).
+ *
+ * The backend is reached through the same-origin proxy at `app/api/[...path]/route.ts`,
+ * which forwards server-side using the server-only `BACKEND_ORIGIN` in
+ * `lib/backend-origin.ts`. That gives three properties that a direct browser-to-backend
+ * call cannot:
+ *
+ *   1. The backend's address never enters a client bundle. It is read from
+ *      `process.env` in a server-only module, so it cannot be inlined or leaked.
+ *   2. The browser's only network peer is the frontend's own origin. Nothing points at
+ *      a second host, which is what the sovereignty claim in the UI actually rests on.
+ *   3. `X-Inference-Mode` and the `BACKEND_UNREACHABLE` envelope are observable in one
+ *      place instead of being duplicated per call site.
+ *
+ * The consequence to be aware of: this only works while the browser talks to the
+ * Next.js server. It is not a base URL you can repoint at a different backend from the
+ * client, and that is on purpose -- doing so would put a second origin in the bundle
+ * and require backend CORS to admit it. To change which backend is used, set
+ * `BACKEND_URL` in the server's environment (see `.env.example`), not here.
+ */
 const API_BASE = ""
 
 /**
@@ -272,6 +296,14 @@ export const apiClient = {
 
   /**
    * Artifacts
+   *
+   * The returned URL is intentionally relative (Frontend-fix.md 3.5): artifact bytes
+   * are only ever fetched same-origin through the `/api/*` proxy, exactly like every
+   * other call in this client. Under a direct backend origin this relative URL would
+   * resolve against the page's own host rather than the backend -- which is correct,
+   * because pointing the browser at the backend directly is not a supported
+   * deployment; the server-side origin is the one `BACKEND_URL` names. See the
+   * comment on `API_BASE` above for why that arrangement exists in the first place.
    */
   getArtifactDownloadUrl(artifactId: string): string {
     return `${API_BASE}/api/artifacts/${artifactId}?download=1`

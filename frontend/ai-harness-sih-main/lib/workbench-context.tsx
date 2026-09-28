@@ -10,6 +10,7 @@ import React, {
 } from "react"
 import {
   TaskState,
+  TaskType,
   SovereigntyMetrics,
   PIDNode,
   AgentStep,
@@ -20,6 +21,7 @@ import {
   BackendTaskResponse,
   BackendArtifactItem,
 } from "@/types/workbench"
+import { formatBytes } from "@/lib/format"
 import {
   apiClient,
   ApiError,
@@ -65,10 +67,11 @@ const WorkbenchContext = createContext<WorkbenchContextType | undefined>(undefin
 /**
  * Map backend artifact manifests to UI deliverables.
  *
- * Shared by `loadTask` and the resume path. The `artifact_created` / `artifact_validation`
- * events (G9) carry only `{artifact_id, artifact_type}` — no path, no verification
- * status — so an artifact's real metadata is only ever available from
- * `GET /api/tasks/{id}`. Both paths must read it the same way.
+ * Shared by `loadTask`, the resume path, and the `artifact_created` handler. The
+ * `artifact_created` / `artifact_validation` events (G9) carry only
+ * `{artifact_id, artifact_type}` — no path, no verification status, no size — so an
+ * artifact's real metadata is only ever available from `GET /api/tasks/{id}`. All three
+ * paths must read it the same way, so they call this.
  */
 function mapManifests(
   manifests: BackendArtifactItem[],
@@ -77,14 +80,34 @@ function mapManifests(
   return manifests.map((a) => ({
     id: a.artifact_id,
     filename: a.path.split("/").pop() || `${a.artifact_type}.bin`,
-    fileType: (a.artifact_type === "graph_json" ? "json" : a.artifact_type) as ArtifactDeliverable["fileType"],
-    fileSizeFormatted: "Validated deliverable",
+    // `graph_json` is stored as an artifact type but opened as JSON, so this one
+    // remapping is a real translation rather than a cast to hide a mismatch.
+    fileType: a.artifact_type === "graph_json" ? "json" : a.artifact_type,
+    // Real bytes from the backend, formatted for display. This field held the literal
+    // string "Validated deliverable" until Frontend-fix.md 3.2 — a statement about the
+    // artifact's validity sitting in the field the UI renders as its size.
+    fileSizeFormatted: formatBytes(a.size_bytes),
     downloadUrl: apiClient.getArtifactDownloadUrl(a.artifact_id),
     validationStatus: a.verification_status === "passed" ? "validated" : "warning",
     validationMessage: `Validated ${a.artifact_type} structure and sha256 checksum`,
     summary: `Generated deliverable (${a.artifact_type})`,
     generatedAt: timestamp,
   }))
+}
+
+/**
+ * Narrow an untrusted value to a real `TaskType`.
+ *
+ * The backend's `task_type` is a plain nullable string column, and `model_selected` /
+ * `state_changed` event payloads are untyped dicts, so either could carry something
+ * outside G7's three values. Anything unrecognised becomes `null` — unclassified —
+ * rather than being passed through into a union it does not belong to, or defaulted
+ * to a placeholder that reads as a real classification.
+ */
+function asTaskType(value: unknown): TaskType | null {
+  return value === "inspection" || value === "coding" || value === "pid_analysis"
+    ? value
+    : null
 }
 
 /**
@@ -391,7 +414,11 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
       const loadedTaskState: TaskState = {
         taskId: task.task_id,
         userPrompt: task.user_request,
-        taskType: (task.task_type || "general") as any,
+        // `task_type` is null until the orchestrator classifies the task, so null is
+        // the correct value here. It previously fell back to the invented string
+        // "general" through an `as any` cast -- a fourth task type that G7 does not
+        // define, presented as though the backend had reported it.
+        taskType: asTaskType(task.task_type),
         currentState: task.current_state,
         routing: routingFromTaskRecord(task),
         steps: mappedSteps,
@@ -593,7 +620,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
         const nextState = (data.state || "INTAKE") as AgentState
         updated.currentState = nextState
         if (data.task_type) {
-          updated.taskType = data.task_type
+          updated.taskType = asTaskType(data.task_type)
         }
       } else if (eventType === "model_selected") {
         updated.routing = routingFromModelSelected(data)
@@ -671,20 +698,18 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
         ]
       } else if (eventType === "artifact_created") {
         if (updated.taskId) {
+          // The event itself carries only `{artifact_id, artifact_type}`, so refetch the
+          // task for the real manifests. This used to inline a second, slightly
+          // different copy of the mapping below -- which is how the "Validated
+          // deliverable" size string ended up in two places and both had to be fixed.
+          // It now calls `mapManifests`, so there is one implementation.
           apiClient.getTask(updated.taskId).then((taskData) => {
             if (taskData.artifacts) {
-              const deliverables: ArtifactDeliverable[] = taskData.artifacts.map((a) => ({
-                id: a.artifact_id,
-                filename: a.path.split("/").pop() || `${a.artifact_type}.bin`,
-                fileType: (a.artifact_type === "graph_json" ? "json" : a.artifact_type) as any,
-                fileSizeFormatted: "Validated deliverable",
-                downloadUrl: apiClient.getArtifactDownloadUrl(a.artifact_id),
-                validationStatus: a.verification_status === "passed" ? "validated" : "warning",
-                validationMessage: `Validated ${a.artifact_type} structure and sha256 checksum`,
-                summary: `Generated deliverable (${a.artifact_type})`,
-                generatedAt: timeStr,
-              }))
-              setActiveTask((t) => (t ? { ...t, artifacts: deliverables } : t))
+              setActiveTask((t) =>
+                t
+                  ? { ...t, artifacts: mapManifests(taskData.artifacts ?? [], timeStr) }
+                  : t
+              )
             }
           })
         }
@@ -887,7 +912,9 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
       const newTask: TaskState = {
         taskId: tempTaskId,
         userPrompt: message,
-        taskType: "general",
+        // No backend classification yet. Was the literal "general", a task type G7 does
+        // not define; null is what the `tasks` column actually holds at INTAKE.
+        taskType: null,
         currentState: "INTAKE",
         routing: initialRouting,
         steps: [

@@ -10,10 +10,31 @@ Read the relevant documentation in `node_modules/next/dist/docs/` before writing
 All frontend agents working in this directory **MUST** adhere to the master rulebook and design guidelines:
 
 ## 1. Documentation & Source of Truth
-- **Root Agent Rulebook:** [`../AGENTS.md`](file:///home/johan/Hackathons/SIH2026/ai-harness/AGENTS.md)
-- **Frontend Specification:** [`FRONTEND_DOC.md`](file:///home/johan/Hackathons/SIH2026/ai-harness/frontend/FRONTEND_DOC.md) & [`../DOCS/FRONTEND_DOC.md`](file:///home/johan/Hackathons/SIH2026/ai-harness/DOCS/FRONTEND_DOC.md)
-- **Design System & Tokens:** [`DESIGN.md`](file:///home/johan/Hackathons/SIH2026/ai-harness/frontend/DESIGN.md) & `app/globals.css`
-- **Master Project Architecture:** [`../DOCS/GENERAL_PROJECT_DOC.md`](file:///home/johan/Hackathons/SIH2026/ai-harness/DOCS/GENERAL_PROJECT_DOC.md)
+All paths are relative to this file (`frontend/ai-harness-sih-main/AGENTS.md`).
+
+- **Root Agent Rulebook:** [`../../AGENTS.md`](../../AGENTS.md) — the governing
+  document. G1 product, G2 the Soham/Joy ownership boundary, G3 the security invariants,
+  G4 commands, G5 repo layout, G6 config, G7 locked decisions, G8 contracts, G9 events
+  and audit, G10 database, G11 API contract, G12 workspace layout. **Read this before
+  changing anything that touches the backend.**
+- **Frontend Specification:** [`FRONTEND_DOC.md`](FRONTEND_DOC.md)
+- **Design System & Tokens:** [`DESIGN.md`](DESIGN.md) & `app/globals.css`
+- **Backend/API contract:** [`../../docs/api-contract.md`](../../docs/api-contract.md)
+- **Recorded decisions:** [`../../docs/decisions.md`](../../docs/decisions.md) —
+  append-only; read the tail before adding a line.
+- **Network lockdown posture:** [`../../docs/network-lockdown.md`](../../docs/network-lockdown.md)
+- **Frontend remediation plan:** [`../Frontend-fix.md`](../Frontend-fix.md) — the
+  plan of record for the "stop displaying data the backend never sent" work.
+- **Backend build PRD:** [`../../build.prd.md`](../../build.prd.md)
+
+Links that used to be here and are deliberately **not** restored: `../DOCS/` and
+`../DOCS/GENERAL_PROJECT_DOC.md`. There is no `DOCS/` directory anywhere in this
+repository, and no `GENERAL_PROJECT_DOC.md`. The previous revision pointed at
+`file:///home/johan/Hackathons/SIH2026/ai-harness/…` absolute paths from a different
+machine, so every one of them was dead on arrival. The architecture content they
+claimed to hold is in the root rulebook (G5 repo layout, G7 locked decisions) and
+`build.prd.md`; if a genuine architecture document is ever written, link it here and
+check that it resolves.
 
 ## 2. Skills Usage (`.agents/skills/`)
 Before building or modifying components, consult installed skills in `.agents/skills/`:
@@ -43,3 +64,32 @@ Before building or modifying components, consult installed skills in `.agents/sk
 - **Main Stream:** Conversation view, streamed step accordion, inline **Routing Receipt Badge**, and **Approval Gate**.
 - **Context Panel:** 4 Tabs (`Files`, `Sources`, `Artifacts`, `PIDGraphViewer`).
 - **Bottom Bar:** `ExecutionTimeline` (Audit-log step checklist).
+
+## 5. Data Honesty (STRICT — not negotiable)
+
+**Never display a value the backend did not send.** This is the rule the whole frontend
+remediation exists to enforce, and it outranks visual completeness.
+
+Concretely, when the backend omits something:
+
+- render an explicit absence — `lib/format.ts` exports `NOT_REPORTED` for exactly this;
+- leave the field **null/optional** and narrow it away with a type guard, rather than
+  defaulting it to a plausible value;
+- **never** substitute a placeholder, a sample, a plausible-looking number, or a
+  neighbouring field's value.
+
+`taskType` is the worked example. It was `TaskType | 'general' | 'sovereignty_proof'`,
+defaulted to `"general"` whenever the backend reported nothing. G7 defines exactly three
+task types and CLASSIFY assigns one; "not classified yet" is a **null**, not a fourth
+kind of task. Same class of defect as the `fileSizeFormatted: "Validated deliverable"`
+string in a size field, and as `"Not reported"` invented per-site with different wording.
+
+Two more rules that follow from the same principle:
+
+- **Assert nothing the backend did not measure.** `AIR-GAPPED` must come from
+  `GET /api/monitoring/sovereignty`, not from a hardcoded default. A monitor that
+  claims air-gap before the backend has been contacted is worse than one that shows
+  nothing.
+- **No mock data, no mock toggle, in any shipped path.** `lib/mock-data.ts` is retained
+  as a design fixture with a do-not-import banner; see the note at its head.
+
